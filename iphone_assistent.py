@@ -1,5 +1,6 @@
 
 import json
+import os
 import re
 from flask import Flask, request, render_template_string
 from openai import OpenAI
@@ -278,4 +279,4 @@ def startseite():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=False)
+    port=int(os.environ.get("PORT", 5001))
