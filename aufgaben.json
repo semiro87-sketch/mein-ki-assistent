@@ -1,0 +1,28 @@
+[
+  {
+    "text": "Aufräumen später",
+    "prioritaet": "niedrig",
+    "faelligkeit": "ohne"
+  },
+  {
+    "text": "Aufräumen später",
+    "prioritaet": "niedrig",
+    "faelligkeit": "ohne"
+  },
+  {
+    "text": "Aufräumen später",
+    "prioritaet": "niedrig",
+    "faelligkeit": "ohne"
+  },
+  {
+    "text": "Aufräumen später",
+    "prioritaet": "niedrig",
+    "faelligkeit": "ohne"
+  },
+  {
+    "text": "Zahnarzt morgen um 14:30",
+    "prioritaet": "normal",
+    "faelligkeit": "morgen",
+    "uhrzeit": "14:30"
+  }
+]
