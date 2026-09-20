@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import psycopg
 from flask import Flask, request, render_template_string
 from openai import OpenAI
 app = Flask(__name__)
@@ -198,11 +199,42 @@ function kiDenkt() {
 </html>
 """
 def lade_aufgaben():
+    database_url = os.environ.get("DATABASE_URL")
+
+    if database_url:
+        with psycopg.connect(database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS aufgaben (
+                        id SERIAL PRIMARY KEY,
+                        text TEXT NOT NULL,
+                        prioritaet TEXT NOT NULL,
+                        faelligkeit TEXT NOT NULL,
+                        uhrzeit TEXT
+                    )
+                """)
+                cur.execute("""
+                    SELECT id, text, prioritaet, faelligkeit, uhrzeit
+                    FROM aufgaben
+                    ORDER BY id
+                """)
+                return [
+                    {
+                        "id": row[0],
+                        "text": row[1],
+                        "prioritaet": row[2],
+                        "faelligkeit": row[3],
+                        "uhrzeit": row[4] or "ohne"
+                    }
+                    for row in cur.fetchall()
+                ]
+
     try:
         with open("aufgaben.json", "r") as datei:
             return json.load(datei)
     except FileNotFoundError:
         return []
+
 @app.route("/", methods=["GET", "POST"])
 def startseite():
     aufgaben = lade_aufgaben()
@@ -228,14 +260,23 @@ def startseite():
                 prioritaet = "hoch"
             elif "später" in neue_aufgabe.lower() or "nicht dringend" in neue_aufgabe.lower():
                 prioritaet = "niedrig"
-            aufgaben.append({
-                "text": neue_aufgabe,
-                "prioritaet": prioritaet,
-                "faelligkeit": faelligkeit,
-                "uhrzeit": uhrzeit
-            })
-            with open("aufgaben.json", "w") as datei:
-                json.dump(aufgaben, datei, ensure_ascii=False, indent=2)
+            if os.environ.get("DATABASE_URL"):
+                with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "INSERT INTO aufgaben (text, prioritaet, faelligkeit, uhrzeit) VALUES (%s, %s, %s, %s)",
+                            (neue_aufgabe, prioritaet, faelligkeit, uhrzeit)
+                        )
+                aufgaben = lade_aufgaben()
+            else:
+                aufgaben.append({
+                    "text": neue_aufgabe,
+                    "prioritaet": prioritaet,
+                    "faelligkeit": faelligkeit,
+                    "uhrzeit": uhrzeit
+                })
+                with open("aufgaben.json", "w") as datei:
+                    json.dump(aufgaben, datei, ensure_ascii=False, indent=2)
             antwort = "➕ Aufgabe hinzugefügt."
             heute = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "heute"]
             spaeter = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "ohne"]
@@ -246,9 +287,16 @@ def startseite():
         if erledigt is not None:
             nummer = int(erledigt)
             if 0 <= nummer < len(aufgaben):
-                aufgaben.pop(nummer)
-                with open("aufgaben.json", "w") as datei:
-                    json.dump(aufgaben, datei, ensure_ascii=False, indent=2)
+                if os.environ.get("DATABASE_URL"):
+                    aufgabe_id = aufgaben[nummer]["id"]
+                    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("DELETE FROM aufgaben WHERE id = %s", (aufgabe_id,))
+                    aufgaben = lade_aufgaben()
+                else:
+                    aufgaben.pop(nummer)
+                    with open("aufgaben.json", "w") as datei:
+                        json.dump(aufgaben, datei, ensure_ascii=False, indent=2)
                 antwort = "✅ Aufgabe erledigt."
                 heute = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "heute"]
                 morgen = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"]
