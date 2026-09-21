@@ -134,6 +134,10 @@ button {
 }
 
 @media (max-width: 600px) {
+    form {
+        width: 100%;
+    }
+
     body {
         padding: 12px;
     }
