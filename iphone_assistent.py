@@ -191,6 +191,7 @@ button {
 <p>• {{ aufgabe['text'] }} {% if aufgabe.get('uhrzeit') and aufgabe.get('uhrzeit') != 'ohne' %}⏰ {{ aufgabe['uhrzeit'] }}{% endif %} <span class="badge">{{ aufgabe['prioritaet']|upper }}</span></p>
 <form method="post">
 <input type="hidden" name="erledigt" value="{{ nummer  }}">
+<button type="submit" name="bearbeiten" value="{{ nummer }}">✏️ Bearbeiten</button>
 <button type="submit">✅ Erledigt</button>
 </form>
 </div>
@@ -201,6 +202,7 @@ button {
 <p>• {{ aufgabe['text'] }} {% if aufgabe.get('uhrzeit') and aufgabe.get('uhrzeit') != 'ohne' %}⏰ {{ aufgabe['uhrzeit'] }}{% endif %} <span class="badge">{{ aufgabe['prioritaet']|upper }}</span></p>
 <form method="post">
 <input type="hidden" name="erledigt" value="{{ nummer  }}">
+<button type="submit" name="bearbeiten" value="{{ nummer }}">✏️ Bearbeiten</button>
 <button type="submit">✅ Erledigt</button>
 </form>
 </div>
@@ -211,6 +213,7 @@ button {
 <p>• {{ aufgabe['text'] }} {% if aufgabe.get('uhrzeit') and aufgabe.get('uhrzeit') != 'ohne' %}⏰ {{ aufgabe['uhrzeit'] }}{% endif %} <span class="badge">{{ aufgabe['prioritaet']|upper }}</span></p>
 <form method="post">
 <input type="hidden" name="erledigt" value="{{ nummer }}">
+<button type="submit" name="bearbeiten" value="{{ nummer }}">✏️ Bearbeiten</button>
 <button type="submit">✅ Erledigt</button>
 </form>
 </div>
@@ -315,6 +318,22 @@ def startseite():
             spaeter = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "ohne"]
             morgen = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"]
             return render_template_string(HTML, antwort=antwort, aufgaben=aufgaben, heute=heute, morgen=morgen, spater=spaeter)
+
+        bearbeiten = request.form.get("bearbeiten")
+        if bearbeiten is not None:
+            nummer = int(bearbeiten)
+            if 0 <= nummer < len(aufgaben):
+                aufgabe = aufgaben[nummer]
+                antwort = (
+                    "✏️ Bearbeiten: "
+                    + aufgabe["text"]
+                    + " | Priorität: "
+                    + aufgabe["prioritaet"]
+                    + " | Fälligkeit: "
+                    + aufgabe["faelligkeit"]
+                    + " | Uhrzeit: "
+                    + aufgabe.get("uhrzeit", "ohne")
+                )
 
         erledigt = request.form.get("erledigt")
         if erledigt is not None:
