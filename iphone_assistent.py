@@ -132,6 +132,34 @@ button {
     letter-spacing: 2px;
     opacity: 0.65;
 }
+
+@media (max-width: 600px) {
+    body {
+        padding: 12px;
+    }
+
+    .container {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    input, button {
+        width: 100%;
+        min-height: 48px;
+        font-size: 16px;
+        box-sizing: border-box;
+    }
+
+    .task {
+        padding: 14px;
+        margin: 10px 0;
+    }
+
+    .bereich {
+        margin: 20px 4px 8px;
+    }
+}
+
 </style>
 </head>
 <body>
