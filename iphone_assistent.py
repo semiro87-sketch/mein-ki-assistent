@@ -190,8 +190,10 @@ button {
 <div class="task {{ aufgabe['prioritaet'] }}">
 <p>• {{ aufgabe['text'] }} {% if aufgabe.get('uhrzeit') and aufgabe.get('uhrzeit') != 'ohne' %}⏰ {{ aufgabe['uhrzeit'] }}{% endif %} <span class="badge">{{ aufgabe['prioritaet']|upper }}</span></p>
 <form method="post">
-<input type="hidden" name="erledigt" value="{{ nummer  }}">
 <button type="submit" name="bearbeiten" value="{{ nummer }}">✏️ Bearbeiten</button>
+</form>
+<form method="post">
+<input type="hidden" name="erledigt" value="{{ nummer }}">
 <button type="submit">✅ Erledigt</button>
 </form>
 </div>
@@ -201,8 +203,10 @@ button {
 <div class="task {{ aufgabe['prioritaet'] }}">
 <p>• {{ aufgabe['text'] }} {% if aufgabe.get('uhrzeit') and aufgabe.get('uhrzeit') != 'ohne' %}⏰ {{ aufgabe['uhrzeit'] }}{% endif %} <span class="badge">{{ aufgabe['prioritaet']|upper }}</span></p>
 <form method="post">
-<input type="hidden" name="erledigt" value="{{ nummer  }}">
 <button type="submit" name="bearbeiten" value="{{ nummer }}">✏️ Bearbeiten</button>
+</form>
+<form method="post">
+<input type="hidden" name="erledigt" value="{{ nummer }}">
 <button type="submit">✅ Erledigt</button>
 </form>
 </div>
@@ -212,8 +216,10 @@ button {
 <div class="task {{ aufgabe['prioritaet'] }}">
 <p>• {{ aufgabe['text'] }} {% if aufgabe.get('uhrzeit') and aufgabe.get('uhrzeit') != 'ohne' %}⏰ {{ aufgabe['uhrzeit'] }}{% endif %} <span class="badge">{{ aufgabe['prioritaet']|upper }}</span></p>
 <form method="post">
-<input type="hidden" name="erledigt" value="{{ nummer }}">
 <button type="submit" name="bearbeiten" value="{{ nummer }}">✏️ Bearbeiten</button>
+</form>
+<form method="post">
+<input type="hidden" name="erledigt" value="{{ nummer }}">
 <button type="submit">✅ Erledigt</button>
 </form>
 </div>
