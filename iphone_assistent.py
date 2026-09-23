@@ -225,6 +225,17 @@ button {
 </div>
 {% endfor %}
 
+{% if bearbeiten_aufgabe %}
+<div>
+    <h2>✏️ Aufgabe bearbeiten</h2>
+    <form method="post">
+        <input type="hidden" name="speichern_nummer" value="{{ bearbeiten_aufgabe['nummer'] }}">
+        <input name="bearbeiten_text" value="{{ bearbeiten_aufgabe['text'] }}" required>
+        <button type="submit">💾 Änderungen speichern</button>
+    </form>
+</div>
+{% endif %}
+
 {% if antwort %}
 <div>
     <h2>Antwort:</h2>
@@ -284,6 +295,7 @@ def startseite():
     morgen = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"]
     spaeter = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "ohne"]
     antwort = ""
+    bearbeiten_aufgabe = None
 
     if request.method == "POST":
         neue_aufgabe = request.form.get("neue_aufgabe", "").strip()
@@ -323,24 +335,35 @@ def startseite():
             heute = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "heute"]
             spaeter = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "ohne"]
             morgen = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"]
-            return render_template_string(HTML, antwort=antwort, aufgaben=aufgaben, heute=heute, morgen=morgen, spater=spaeter)
+            return render_template_string(HTML, antwort=antwort, aufgaben=aufgaben, heute=heute, morgen=morgen, spater=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe)
 
-        bearbeiten = request.form.get("bearbeiten")
-        if bearbeiten is not None:
-            nummer = int(bearbeiten)
-            if 0 <= nummer < len(aufgaben):
-                aufgabe = aufgaben[nummer]
-                antwort = (
-                    "✏️ Bearbeiten: "
-                    + aufgabe["text"]
-                    + " | Priorität: "
-                    + aufgabe["prioritaet"]
-                    + " | Fälligkeit: "
-                    + aufgabe["faelligkeit"]
-                    + " | Uhrzeit: "
-                    + aufgabe.get("uhrzeit", "ohne")
-                )
+    speichern_nummer = request.form.get("speichern_nummer")
+    if speichern_nummer is not None:
+        nummer = int(speichern_nummer)
+        neuer_text = request.form.get("bearbeiten_text", "").strip()
+        if 0 <= nummer < len(aufgaben) and neuer_text:
+            aufgaben[nummer]["text"] = neuer_text
+            if os.environ.get("DATABASE_URL"):
+                aufgabe_id = aufgaben[nummer]["id"]
+                with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE aufgaben SET text = %s WHERE id = %s",
+                            (neuer_text, aufgabe_id)
+                        )
+                aufgaben = lade_aufgaben()
+            else:
+                with open("aufgaben.json", "w") as datei:
+                    json.dump(aufgaben, datei, ensure_ascii=False, indent=2)
+            antwort = "💾 Aufgabe geändert."
 
+
+    bearbeiten = request.form.get("bearbeiten")
+    if bearbeiten is not None:
+        nummer = int(bearbeiten)
+        if 0 <= nummer < len(aufgaben):
+            bearbeiten_aufgabe = aufgaben[nummer].copy()
+            bearbeiten_aufgabe["nummer"] = nummer
         erledigt = request.form.get("erledigt")
         if erledigt is not None:
             nummer = int(erledigt)
@@ -359,7 +382,7 @@ def startseite():
                 heute = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "heute"]
                 morgen = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"]
                 spaeter = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "ohne"]
-                return render_template_string(HTML, antwort=antwort, aufgaben=aufgaben, heute=heute, morgen=morgen, spater=spaeter)
+                return render_template_string(HTML, antwort=antwort, aufgaben=aufgaben, heute=heute, morgen=morgen, spater=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe)
         if request.form.get("tagesplan"):
             aufgaben_text = "\n".join(
                 f"- {a['text']} (Priorität: {a['prioritaet']}, Fälligkeit: {a['faelligkeit']}, Uhrzeit: {a.get('uhrzeit', 'ohne')})"                for a in aufgaben
@@ -381,7 +404,7 @@ def startseite():
             )
             antwort = ergebnis.output_text
 
-    return render_template_string(HTML, antwort=antwort, aufgaben=aufgaben, heute=heute, morgen=morgen, spaeter=spaeter)
+    return render_template_string(HTML, antwort=antwort, aufgaben=aufgaben, heute=heute, morgen=morgen, spaeter=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe)
 
 
 if __name__ == "__main__":
