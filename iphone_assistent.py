@@ -3,9 +3,10 @@ import json
 import os
 import re
 import psycopg
-from flask import Flask, request, render_template_string
+from flask import Flask, request, render_template_string, session, redirect
 from openai import OpenAI
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "lokal-nur-zum-testen")
 client = OpenAI()
 HTML = """
 <!DOCTYPE html>
@@ -288,8 +289,39 @@ def lade_aufgaben():
     except FileNotFoundError:
         return []
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    fehler = ""
+    if request.method == "POST":
+        passwort = request.form.get("passwort", "")
+        if passwort == os.environ.get("APP_PASSWORD"):
+            session["angemeldet"] = True
+            return redirect("/")
+        fehler = "Falsches Passwort."
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>KI-Assistent Login</title>
+    </head>
+    <body>
+        <h2>🔐 KI-Assistent</h2>
+        <form method="post">
+            <input type="password" name="passwort" placeholder="Passwort" required>
+            <button type="submit">Anmelden</button>
+        </form>
+        <p>{fehler}</p>
+    </body>
+    </html>
+    """
+
 @app.route("/", methods=["GET", "POST"])
 def startseite():
+    if not session.get("angemeldet"):
+        return redirect("/login")
+
     aufgaben = lade_aufgaben()
     heute = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "heute"]
     morgen = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"]
