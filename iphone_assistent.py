@@ -300,24 +300,6 @@ def login():
             return redirect("/")
         fehler = "Falsches Passwort."
 
-    return f"""
-    <!DOCTYPE html>
-    <html lang="de">
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>KI-Assistent Login</title>
-    </head>
-    <body>
-        <h2>🔐 KI-Assistent</h2>
-        <form method="post">
-            <input type="password" name="passwort" placeholder="Passwort" required>
-            <button type="submit">Anmelden</button>
-        </form>
-        <p>{fehler}</p>
-    </body>
-    </html>
-    """
-
 @app.route("/logout")
 def logout():
     session.clear()
