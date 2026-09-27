@@ -173,6 +173,7 @@ button {
 <div class="status">● KI ONLINE</div>
 <div class="container">
 <h1>🤖 Mein KI-Assistent</h1>
+<a href="/logout">🚪 Abmelden</a>
 <form method="post" onsubmit="kiDenkt()">
     <input name="frage" placeholder="Was möchtest du wissen?" autocomplete="off">
     <button type="submit">Senden</button>
@@ -316,6 +317,11 @@ def login():
     </body>
     </html>
     """
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
 
 @app.route("/", methods=["GET", "POST"])
 def startseite():
