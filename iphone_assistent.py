@@ -493,6 +493,17 @@ def api_aufgabe_hinzufuegen():
         with open("aufgaben.json", "w") as datei:
             json.dump(aufgaben, datei, ensure_ascii=False, indent=2)
     return {"erfolg": True}
+@app.route("/api/aufgaben/<int:aufgabe_id>", methods=["DELETE"])
+def api_aufgabe_erledigen(aufgabe_id):
+    if os.environ.get("DATABASE_URL"):
+        with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM aufgaben WHERE id = %s", (aufgabe_id,))
+        return {"erfolg": True}
+
+    return {"fehler": "Löschen ist lokal noch nicht verfügbar."}, 400
+
+
 if __name__ == "__main__":
     port=int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port, debug=False)
