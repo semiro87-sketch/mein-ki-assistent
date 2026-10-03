@@ -463,6 +463,27 @@ def api_frage():
 def api_aufgaben():
     aufgaben = lade_aufgaben()
     return {"aufgaben": aufgaben}
+@app.route("/api/aufgaben", methods=["POST"])
+def api_aufgabe_hinzufuegen():
+    daten = request.get_json(silent=True) or {}
+    text = daten.get("text", "").strip()
+
+    if not text:
+        return {"fehler": "Aufgabe darf nicht leer sein."}, 400
+
+    aufgaben = lade_aufgaben()
+
+    neue_aufgabe = {
+        "text": text,
+        "prioritaet": "normal",
+        "faelligkeit": "ohne",
+        "uhrzeit": "ohne"
+    }
+
+    aufgaben.append(neue_aufgabe)
+    speichere_aufgaben(aufgaben)
+
+    return {"erfolg": True}
 if __name__ == "__main__":
     port=int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port, debug=False)
