@@ -444,7 +444,21 @@ def startseite():
 
     return render_template_string(HTML, antwort=antwort, aufgaben=aufgaben, heute=heute, morgen=morgen, spaeter=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe)
 
+@app.route("/api/frage", methods=["POST"])
+def api_frage():
+    daten = request.get_json(silent=True) or {}
+    frage = daten.get("frage", "").strip()
 
+    if not frage:
+        return {"antwort": "Bitte stelle mir eine Frage."}, 400
+
+    ergebnis = client.responses.create(
+        model="gpt-5",
+        instructions="Du bist mein persönlicher KI-Assistent. Antworte auf Deutsch, freundlich und verständlich.",
+        input=frage
+    )
+
+    return {"antwort": ergebnis.output_text}
 if __name__ == "__main__":
     port=int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port, debug=False)
