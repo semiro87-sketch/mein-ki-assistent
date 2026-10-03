@@ -478,9 +478,13 @@ def api_aufgabe_hinzufuegen():
         faelligkeit = "heute"
     elif "morgen" in text.lower():
         faelligkeit = "morgen"
+    prioritaet = "normal"
+    if "wichtig" in text.lower() or "dringend" in text.lower():
+        prioritaet = "hoch"
+
     neue_aufgabe = {
         "text": text,
-        "prioritaet": "normal",
+        "prioritaet": prioritaet,
         "faelligkeit": faelligkeit,
         "uhrzeit": "ohne"
     }
@@ -492,7 +496,7 @@ def api_aufgabe_hinzufuegen():
                 cur.execute(
                     """INSERT INTO aufgaben (text, prioritaet, faelligkeit, uhrzeit)
                        VALUES (%s, %s, %s, %s)""",
-                    (text, "normal", faelligkeit, "ohne")
+                    (text, prioritaet, faelligkeit, "ohne")
                 )
     else:
         with open("aufgaben.json", "w") as datei:
