@@ -473,10 +473,14 @@ def api_aufgabe_hinzufuegen():
 
     aufgaben = lade_aufgaben()
 
+    faelligkeit = "ohne"
+    if "heute" in text.lower():
+        faelligkeit = "heute"
+        faelligkeit = "morgen"
     neue_aufgabe = {
         "text": text,
         "prioritaet": "normal",
-        "faelligkeit": "ohne",
+        "faelligkeit": faelligkeit,
         "uhrzeit": "ohne"
     }
 
