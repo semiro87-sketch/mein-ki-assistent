@@ -476,6 +476,7 @@ def api_aufgabe_hinzufuegen():
     faelligkeit = "ohne"
     if "heute" in text.lower():
         faelligkeit = "heute"
+    elif "morgen" in text.lower():
         faelligkeit = "morgen"
     neue_aufgabe = {
         "text": text,
