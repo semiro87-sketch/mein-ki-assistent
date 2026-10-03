@@ -459,6 +459,10 @@ def api_frage():
     )
 
     return {"antwort": ergebnis.output_text}
+@app.route("/api/aufgaben", methods=["GET"])
+def api_aufgaben():
+    aufgaben = lade_aufgaben()
+    return {"aufgaben": aufgaben}
 if __name__ == "__main__":
     port=int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port, debug=False)
