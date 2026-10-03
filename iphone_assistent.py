@@ -481,8 +481,17 @@ def api_aufgabe_hinzufuegen():
     }
 
     aufgaben.append(neue_aufgabe)
-    speichere_aufgaben(aufgaben)
-
+    if os.environ.get("DATABASE_URL"):
+        with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO aufgaben (text, prioritaet, faelligkeit, uhrzeit)
+                       VALUES (%s, %s, %s, %s)""",
+                    (text, "normal", "ohne", "ohne")
+                )
+    else:
+        with open("aufgaben.json", "w") as datei:
+            json.dump(aufgaben, datei, ensure_ascii=False, indent=2)
     return {"erfolg": True}
 if __name__ == "__main__":
     port=int(os.environ.get("PORT", 5001))
