@@ -479,10 +479,10 @@ def api_aufgabe_hinzufuegen():
     elif "morgen" in text.lower():
         faelligkeit = "morgen"
     prioritaet = "normal"
-    if "wichtig" in text.lower() or "dringend" in text.lower():
-        prioritaet = "hoch"
-    elif "später" in text.lower() or "nicht dringend" in text.lower():
+    if "nicht dringend" in text.lower() or "später" in text.lower():
         prioritaet = "niedrig"
+    elif "wichtig" in text.lower() or "dringend" in text.lower():
+        prioritaet = "hoch"
 
     neue_aufgabe = {
         "text": text,
