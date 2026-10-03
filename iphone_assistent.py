@@ -491,7 +491,7 @@ def api_aufgabe_hinzufuegen():
                 cur.execute(
                     """INSERT INTO aufgaben (text, prioritaet, faelligkeit, uhrzeit)
                        VALUES (%s, %s, %s, %s)""",
-                    (text, "normal", "ohne", "ohne")
+                    (text, "normal", faelligkeit, "ohne")
                 )
     else:
         with open("aufgaben.json", "w") as datei:
