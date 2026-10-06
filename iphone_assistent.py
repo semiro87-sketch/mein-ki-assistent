@@ -504,6 +504,27 @@ def api_aufgabe_hinzufuegen():
         with open("aufgaben.json", "w") as datei:
             json.dump(aufgaben, datei, ensure_ascii=False, indent=2)
     return {"erfolg": True}
+@app.route("/api/tagesplan", methods=["GET"])
+def api_tagesplan():
+    aufgaben = lade_aufgaben()
+
+    if not aufgaben:
+        return {"tagesplan": "Du hast aktuell keine Aufgaben."}
+
+    aufgaben_text = "\n".join(
+        f"- {a['text']} (Priorität: {a['prioritaet']}, Fälligkeit: {a['faelligkeit']}, Uhrzeit: {a.get('uhrzeit', 'ohne')})"
+        for a in aufgaben
+    )
+
+    ergebnis = client.responses.create(
+        model="gpt-5",
+        instructions="Erstelle einen kurzen, realistischen Tagesplan aus meinen Aufgaben. Priorisiere wichtige und heute fällige Aufgaben.",
+        input=aufgaben_text
+    )
+
+    return {"tagesplan": ergebnis.output_text}
+
+
 @app.route("/api/aufgaben/<int:aufgabe_id>", methods=["DELETE"])
 def api_aufgabe_erledigen(aufgabe_id):
     if os.environ.get("DATABASE_URL"):
