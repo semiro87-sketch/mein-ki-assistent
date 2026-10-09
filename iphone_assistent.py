@@ -231,7 +231,7 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 <div class="chat-scroll" id="chatScroll" role="log" aria-live="polite">
 {% for rolle, inhalt in chat_nachrichten %}
 <div class="chat-line {{ 'chat-user' if rolle == 'user' else 'chat-assistant' }}">
-<div class="chat-bubble"><span class="chat-who">{{ 'DU' if rolle == 'user' else '🧠 SEMPA' }}</span><div class="chat-text">{{ inhalt }}</div></div>
+<div class="chat-bubble"><span class="chat-who">{{ 'DU' if rolle == 'user' else '🧠 MATRIX' }}</span><div class="chat-text">{{ inhalt }}</div></div>
 </div>
 {% else %}<div class="muted chat-empty">Noch keine Nachrichten. Stelle SEMPA deine erste Frage.</div>{% endfor %}
 </div>
