@@ -3,12 +3,91 @@ import json
 import os
 import re
 import io
+import threading
+from datetime import datetime, timezone
+from decimal import Decimal
 import psycopg
 from flask import Flask, request, render_template_string, session, redirect, jsonify
 from openai import OpenAI
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "lokal-nur-zum-testen")
 client = OpenAI()
+# Vorsichtige EUR-Schaetzungen; kein Ersatz fuer die OpenAI-Abrechnung.
+MONTHLY_LIMIT_EUR = Decimal("2.00")
+TEXT_RESERVE_EUR = Decimal("0.10")
+VOICE_RESERVE_EUR = Decimal("0.02")
+_budget_lock = threading.Lock()
+
+
+def current_month():
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def budget_amount():
+    month = current_month()
+    if os.environ.get("DATABASE_URL"):
+        with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+            with conn.cursor() as cur:
+                cur.execute("CREATE TABLE IF NOT EXISTS matrix_budget (monat TEXT PRIMARY KEY, betrag NUMERIC(12,6) NOT NULL DEFAULT 0)")
+                cur.execute("SELECT betrag FROM matrix_budget WHERE monat = %s", (month,))
+                row = cur.fetchone()
+                return Decimal(str(row[0])) if row else Decimal("0")
+    try:
+        with open("matrix_budget.json", encoding="utf-8") as f:
+            return Decimal(str(json.load(f).get(month, "0")))
+    except (OSError, ValueError, TypeError):
+        return Decimal("0")
+
+
+def change_budget(delta, require_space=False):
+    month = current_month()
+    if os.environ.get("DATABASE_URL"):
+        with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+            with conn.cursor() as cur:
+                cur.execute("CREATE TABLE IF NOT EXISTS matrix_budget (monat TEXT PRIMARY KEY, betrag NUMERIC(12,6) NOT NULL DEFAULT 0)")
+                cur.execute("INSERT INTO matrix_budget (monat, betrag) VALUES (%s, 0) ON CONFLICT (monat) DO NOTHING", (month,))
+                if require_space:
+                    cur.execute("UPDATE matrix_budget SET betrag = betrag + %s WHERE monat = %s AND betrag + %s <= %s RETURNING betrag", (delta, month, delta, MONTHLY_LIMIT_EUR))
+                else:
+                    cur.execute("UPDATE matrix_budget SET betrag = GREATEST(0, betrag + %s) WHERE monat = %s RETURNING betrag", (delta, month))
+                return cur.fetchone() is not None
+    with _budget_lock:
+        try:
+            with open("matrix_budget.json", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            data = {}
+        previous = Decimal(str(data.get(month, "0")))
+        if require_space and previous + delta > MONTHLY_LIMIT_EUR:
+            return False
+        data[month] = str(max(Decimal("0"), previous + delta))
+        with open("matrix_budget.json", "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        return True
+
+
+def paid_text(instructions, content):
+    if not change_budget(TEXT_RESERVE_EUR, require_space=True):
+        return "⛔ Monatsbudget erreicht. Neue KI-Anfragen sind bis zum nächsten Monat gesperrt."
+    try:
+        result = client.responses.create(model="gpt-5", instructions=instructions, input=content[:6000], max_output_tokens=800)
+        # Aufrunden mit Sicherheitsaufschlag (USD-Preise grob in EUR bewertet).
+        usage = result.usage
+        input_tokens = getattr(usage, "input_tokens", 0) or 0
+        output_tokens = getattr(usage, "output_tokens", 0) or 0
+        estimated = Decimal(str(input_tokens)) * Decimal("0.000002") + Decimal(str(output_tokens)) * Decimal("0.000015")
+        estimated = min(TEXT_RESERVE_EUR, max(Decimal("0.001"), estimated))
+        change_budget(estimated - TEXT_RESERVE_EUR)
+        return result.output_text
+    except Exception:
+        change_budget(-TEXT_RESERVE_EUR)
+        raise
+
+
+def budget_display():
+    used = budget_amount()
+    return {"used": f"{used:.2f}", "remaining": f"{max(Decimal('0'), MONTHLY_LIMIT_EUR-used):.2f}", "percent": min(100, float(used / MONTHLY_LIMIT_EUR * 100)), "month": current_month()}
+
 HTML = """
 <!DOCTYPE html>
 <html lang="de">
@@ -25,13 +104,14 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 .orb-wrap{height:236px;display:grid;place-items:center;position:relative}.orbit{position:absolute;width:188px;height:188px;border:1px dashed #12622e;border-radius:50%;animation:spin 32s linear infinite}.orbit:after{content:"";position:absolute;inset:16px;border:1px solid #155b2b;border-radius:50%}.orb{width:136px;height:136px;border-radius:50%;background:radial-gradient(circle at 36% 28%,#e6ffe9 0%,#71ff94 9%,#00f45b 25%,#007e30 52%,#001807 76%);box-shadow:0 0 17px #00ff6677,0 0 58px #00ff6633,inset -16px -20px 22px #001507;animation:pulse 3.2s ease-in-out infinite}.orb:after{content:"";display:block;width:50px;height:50px;border:1px solid #8dffb1;border-radius:50%;position:relative;left:39px;top:38px;box-shadow:0 0 12px #00ff66}.core-label{text-align:center;margin:-6px 0 24px}.core-label strong{display:block;font-size:19px;letter-spacing:1px}.status{color:var(--green);font-size:10px;margin-top:7px}
 .panel{background:linear-gradient(150deg,#071b0e,#06120a);border:1px solid #17632f;border-radius:15px;padding:15px;margin:12px 0;box-shadow:0 0 20px #00ff6609}.section-head{color:var(--green);font-size:11px;font-weight:800;margin:25px 0 11px;display:flex;justify-content:space-between;align-items:center}.label{font-size:10px;color:var(--green);font-family:ui-monospace,monospace;letter-spacing:1px;margin-bottom:8px}.field{display:block;width:100%;border:1px solid #215d34;background:#07140c;color:white;border-radius:10px;padding:13px;font:inherit;outline:none;min-height:48px}.field:focus{border-color:var(--green);box-shadow:0 0 0 2px #00ff6622}.field::placeholder{color:#9caea1}button{font:inherit;cursor:pointer}.primary{width:100%;background:linear-gradient(100deg,#00cb52,#00ff73);color:#00200a;border:0;border-radius:10px;padding:13px;font-weight:850;min-height:46px;margin-top:9px}.primary:active{transform:scale(.99)}.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tile{background:#071b0e;border:1px solid #166c32;border-radius:13px;padding:17px 12px;text-align:left;color:white;width:100%;min-height:115px}.tile-icon{font-size:23px;color:var(--green);display:block;margin-bottom:16px}.tile b{display:block;font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.4px}.tile small{display:block;color:#77ad86;font-size:10px;margin-top:5px}.task{background:#07180d;border:1px solid #185a2c;border-radius:12px;padding:13px;margin:9px 0}.task.hoch{border-color:#9a4b4b}.task.niedrig{opacity:.8}.task-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.task-text{line-height:1.4;overflow-wrap:anywhere}.chip{font-size:9px;border:1px solid #24613a;color:#9edbb0;border-radius:6px;padding:4px 6px;white-space:nowrap}.hoch .chip{border-color:#a54848;color:#ff9a9a}.task-actions{display:flex;gap:8px;margin-top:12px}.task-actions form{flex:1}.subbtn{background:#0c2815;color:#a4ffbb;border:1px solid #216f3a;border-radius:8px;width:100%;min-height:38px;font-size:12px;font-weight:700}.subbtn.done{background:#0c391b;color:var(--green)}.notice{white-space:pre-wrap;line-height:1.6;color:#e3ffe9;overflow-wrap:anywhere}.notice h2{margin-top:0;font-size:17px}.muted{color:var(--muted);font-size:12px}.logout{color:#9acaab;font-size:12px;text-decoration:none;border-bottom:1px solid #315b3c}.edit{border-color:#00b64a}.hidden{display:none}.footer{text-align:center;color:#47785a;font-size:10px;margin-top:28px;letter-spacing:2px}
 @keyframes pulse{0%,100%{transform:scale(.97);filter:brightness(.9)}50%{transform:scale(1.04);filter:brightness(1.2)}}@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.orb,.orbit{animation:none}}@media(max-width:360px){h1{font-size:23px}.orb-wrap{height:210px}main{padding-left:12px;padding-right:12px}}
-.voice-row{display:flex;gap:9px;align-items:stretch;margin-top:9px}.voice-btn{flex:1;min-height:45px;border:1px solid #248c46;border-radius:10px;background:#092815;color:#aaffc0;font-weight:800;font-size:13px}.voice-btn.recording{background:#54201e;border-color:#ff8275;color:#fff;animation:voiceblink 1s infinite}.voice-btn:disabled{opacity:.55;cursor:wait}.voice-note{color:#91b79b;font-size:11px;line-height:1.5;margin-top:7px;min-height:16px}.voice-note.error{color:#ffb2a9}@keyframes voiceblink{50%{box-shadow:0 0 12px #ff665577}}
+.budget-track{height:10px;background:#10301a;border-radius:10px;overflow:hidden;border:1px solid #256d3c}.budget-fill{height:100%;background:#00ff66;width:{{ budget.percent }}%}.budget-numbers{display:flex;justify-content:space-between;gap:8px;margin:10px 0;font-family:ui-monospace,monospace;font-size:13px;color:#b7ffca}.voice-row{display:flex;gap:9px;align-items:stretch;margin-top:9px}.voice-btn{flex:1;min-height:45px;border:1px solid #248c46;border-radius:10px;background:#092815;color:#aaffc0;font-weight:800;font-size:13px}.voice-btn.recording{background:#54201e;border-color:#ff8275;color:#fff;animation:voiceblink 1s infinite}.voice-btn:disabled{opacity:.55;cursor:wait}.voice-note{color:#91b79b;font-size:11px;line-height:1.5;margin-top:7px;min-height:16px}.voice-note.error{color:#ffb2a9}@keyframes voiceblink{50%{box-shadow:0 0 12px #ff665577}}
 </style>
 </head>
 <body><main>
 <header class="top"><div><div class="eyebrow">MATRIX // AI SYSTEM</div><h1>COMMAND CENTER</h1></div><div class="online mono">ONLINE</div></header>
 <div class="orb-wrap"><div class="orbit"></div><div class="orb" aria-hidden="true"></div></div>
 <div class="core-label"><strong>NEURAL CORE</strong><div class="status" id="status">● ASSISTANT READY</div></div>
+<section class="panel"><div class="label">◈ API BUDGET // {{ budget.month }}</div><div class="budget-numbers"><strong>{{ budget.used }} € / 2,00 €</strong><span>Noch {{ budget.remaining }} €</span></div><div class="budget-track"><div class="budget-fill"></div></div><p class="muted">Geschätzte Nutzung ab Aktivierung. Kein offizieller Rechnungsstand; andere Apps sind nicht enthalten.</p></section>
 <section class="panel"><div class="label">SYSTEM INPUT_</div><form method="post" id="questionForm"><input class="field" name="frage" placeholder="Was kann ich für dich tun?" aria-label="Frage an KI" required autocomplete="off"><div class="voice-row"><button class="voice-btn" type="button" data-voice="frage" aria-label="Frage per Sprache aufnehmen">🎙 FRAGE SPRECHEN</button></div><div class="voice-note" data-voice-note="frage" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div><button class="primary" type="submit">↗ KI-TERMINAL ÖFFNEN</button></form></section>
 <div class="quick-grid"><button class="tile" type="button" onclick="document.querySelector('[name=frage]').focus()"><span class="tile-icon">●</span><b>KI TERMINAL</b><small>FRAGEN STELLEN</small></button><form method="post"><input type="hidden" name="tagesplan" value="1"><button class="tile" type="submit"><span class="tile-icon">◎</span><b>MISSION PLAN</b><small>TAGESPLAN ERSTELLEN</small></button></form></div>
 {% if antwort %}<section class="panel notice" id="result"><h2>▸ SYSTEM RESPONSE</h2>{{ antwort }}</section>{% endif %}
@@ -244,8 +324,7 @@ def startseite():
             else:
                 aufgaben_text = "\n".join(f"- {a['text']} (Priorität: {a['prioritaet']}, Fälligkeit: {a['faelligkeit']}, Uhrzeit: {a.get('uhrzeit', 'ohne')})" for a in aufgaben)
                 try:
-                    ergebnis = client.responses.create(model="gpt-5", instructions="Erstelle einen kurzen, realistischen Tagesplan aus meinen Aufgaben. Priorisiere wichtige und heute fällige Aufgaben.", input=aufgaben_text)
-                    antwort = ergebnis.output_text
+                    antwort = paid_text("Erstelle einen kurzen, realistischen Tagesplan aus meinen Aufgaben. Priorisiere wichtige und heute fällige Aufgaben.", aufgaben_text)
                 except Exception:
                     app.logger.exception("Tagesplan konnte nicht erstellt werden")
                     antwort = "Der Tagesplan ist momentan nicht verfügbar. Bitte später erneut versuchen."
@@ -254,8 +333,7 @@ def startseite():
             frage = request.form.get("frage", "").strip()
             if frage:
                 try:
-                    ergebnis = client.responses.create(model="gpt-5", instructions="Du bist mein persönlicher KI-Assistent. Antworte auf Deutsch, freundlich und verständlich.", input=frage)
-                    antwort = ergebnis.output_text
+                    antwort = paid_text("Du bist mein persönlicher KI-Assistent. Antworte auf Deutsch, freundlich und verständlich.", frage)
                 except Exception:
                     app.logger.exception("KI-Anfrage fehlgeschlagen")
                     antwort = "Die KI ist momentan nicht erreichbar. Bitte später erneut versuchen."
@@ -263,7 +341,7 @@ def startseite():
     heute = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "heute"]
     morgen = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"]
     spaeter = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") not in ("heute", "morgen")]
-    return render_template_string(HTML, antwort=antwort, heute=heute, morgen=morgen, spaeter=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe)
+    return render_template_string(HTML, antwort=antwort, heute=heute, morgen=morgen, spaeter=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe, budget=budget_display())
 
 
 @app.route("/api/transkribieren", methods=["POST"])
@@ -284,32 +362,36 @@ def api_transkribieren():
     extension = name.rsplit(".", 1)[-1] if "." in name else ""
     if extension not in {"mp4", "m4a", "webm", "wav", "ogg", "mp3"}:
         return jsonify(fehler="Dieses Audioformat wird nicht unterstützt."), 400
+    if not change_budget(VOICE_RESERVE_EUR, require_space=True):
+        return jsonify(fehler="Monatsbudget erreicht. Spracherkennung ist vorerst gesperrt."), 429
     try:
         recording = io.BytesIO(audio.read())
         recording.name = "aufnahme." + extension
         result = client.audio.transcriptions.create(
             model="gpt-4o-mini-transcribe", file=recording, language="de"
         )
+        # Konservativer Festbetrag pro Aufnahme (maximal 30 Sekunden).
+        change_budget(Decimal("0.01") - VOICE_RESERVE_EUR)
         return jsonify(text=result.text)
     except Exception:
+        change_budget(-VOICE_RESERVE_EUR)
         app.logger.exception("Spracherkennung fehlgeschlagen")
         return jsonify(fehler="Spracherkennung momentan nicht verfügbar. Bitte erneut versuchen."), 502
 
 @app.route("/api/frage", methods=["POST"])
 def api_frage():
+    if not session.get("angemeldet"):
+        return {"fehler": "Bitte anmelden."}, 401
     daten = request.get_json(silent=True) or {}
     frage = daten.get("frage", "").strip()
 
     if not frage:
         return {"antwort": "Bitte stelle mir eine Frage."}, 400
 
-    ergebnis = client.responses.create(
-        model="gpt-5",
-        instructions="Du bist mein persönlicher KI-Assistent. Antworte auf Deutsch, freundlich und verständlich.",
-        input=frage
-    )
+    if not session.get("angemeldet"):
+        return {"fehler": "Bitte anmelden."}, 401
+    return {"antwort": paid_text("Du bist mein persönlicher KI-Assistent. Antworte auf Deutsch, freundlich und verständlich.", frage)}
 
-    return {"antwort": ergebnis.output_text}
 @app.route("/api/aufgaben", methods=["GET"])
 def api_aufgaben():
     aufgaben = lade_aufgaben()
@@ -357,6 +439,8 @@ def api_aufgabe_hinzufuegen():
     return {"erfolg": True}
 @app.route("/api/tagesplan", methods=["GET"])
 def api_tagesplan():
+    if not session.get("angemeldet"):
+        return {"fehler": "Bitte anmelden."}, 401
     aufgaben = lade_aufgaben()
 
     if not aufgaben:
@@ -367,13 +451,9 @@ def api_tagesplan():
         for a in aufgaben
     )
 
-    ergebnis = client.responses.create(
-        model="gpt-5",
-        instructions="Erstelle einen kurzen, realistischen Tagesplan aus meinen Aufgaben. Priorisiere wichtige und heute fällige Aufgaben.",
-        input=aufgaben_text
-    )
-
-    return {"tagesplan": ergebnis.output_text}
+    if not session.get("angemeldet"):
+        return {"fehler": "Bitte anmelden."}, 401
+    return {"tagesplan": paid_text("Erstelle einen kurzen, realistischen Tagesplan aus meinen Aufgaben. Priorisiere wichtige und heute fällige Aufgaben.", aufgaben_text)}
 
 
 @app.route("/api/aufgaben/<int:aufgabe_id>", methods=["DELETE"])
