@@ -190,6 +190,24 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 @keyframes platformGlow{0%,100%{opacity:.55}50%{opacity:1}}
 @media(max-width:360px){.brain-v22{height:310px}.brain-v22 .holo-brain{height:260px}.brain-v22 .hud-right{top:185px}}
 @media(prefers-reduced-motion:reduce){.brain-v22 .holo-brain,.brain-v22 .holo-halo,.brain-v22 .holo-platform{animation:none!important}}
+
+/* SEMPA 2.3 – kompaktes Layout */
+.brain-v22{height:275px}
+.brain-v22 .holo-brain{width:min(82%,355px);height:225px;top:0}
+.brain-v22 .holo-halo{inset:8px 16% 14px}
+.brain-v22 .holo-platform{bottom:8px;width:52%;height:23px}
+.brain-v22 .brain-hud{top:58px}
+.brain-v22 .hud-right{top:158px}
+.core-label{margin:-3px 0 15px}
+.core-label strong{font-size:17px}
+.system-dashboard{gap:7px;margin-bottom:9px}
+.system-stat{padding:8px 3px}
+.system-stat .stat-icon{font-size:18px;margin-bottom:3px}
+.panel{margin:9px 0;padding:13px}
+.section-head{margin:19px 0 8px}
+.tile{min-height:95px;padding:13px 11px}
+.tile-icon{margin-bottom:9px}
+@media(max-width:360px){.brain-v22{height:248px}.brain-v22 .holo-brain{height:207px;width:85%}.brain-v22 .hud-right{top:142px}}
 </style>
 </head>
 <body><main>
