@@ -94,7 +94,7 @@ HTML = """
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#030805"><meta name="apple-mobile-web-app-capable" content="yes">
-<title>Matrix AI Command Center</title>
+<title>SEMPA AI Command Center</title>
 <style>
 :root{color-scheme:dark;--bg:#030805;--panel:#07170d;--line:#165c2c;--green:#00ff66;--muted:#83a78e;--white:#f1fff4}
 *{box-sizing:border-box}html{background:var(--bg)}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 5%,#0c2816 0%,#030805 55%);color:var(--white);font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -105,13 +105,37 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 .panel{background:linear-gradient(150deg,#071b0e,#06120a);border:1px solid #17632f;border-radius:15px;padding:15px;margin:12px 0;box-shadow:0 0 20px #00ff6609}.section-head{color:var(--green);font-size:11px;font-weight:800;margin:25px 0 11px;display:flex;justify-content:space-between;align-items:center}.label{font-size:10px;color:var(--green);font-family:ui-monospace,monospace;letter-spacing:1px;margin-bottom:8px}.field{display:block;width:100%;border:1px solid #215d34;background:#07140c;color:white;border-radius:10px;padding:13px;font:inherit;outline:none;min-height:48px}.field:focus{border-color:var(--green);box-shadow:0 0 0 2px #00ff6622}.field::placeholder{color:#9caea1}button{font:inherit;cursor:pointer}.primary{width:100%;background:linear-gradient(100deg,#00cb52,#00ff73);color:#00200a;border:0;border-radius:10px;padding:13px;font-weight:850;min-height:46px;margin-top:9px}.primary:active{transform:scale(.99)}.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tile{background:#071b0e;border:1px solid #166c32;border-radius:13px;padding:17px 12px;text-align:left;color:white;width:100%;min-height:115px}.tile-icon{font-size:23px;color:var(--green);display:block;margin-bottom:16px}.tile b{display:block;font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.4px}.tile small{display:block;color:#77ad86;font-size:10px;margin-top:5px}.task{background:#07180d;border:1px solid #185a2c;border-radius:12px;padding:13px;margin:9px 0}.task.hoch{border-color:#9a4b4b}.task.niedrig{opacity:.8}.task-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.task-text{line-height:1.4;overflow-wrap:anywhere}.chip{font-size:9px;border:1px solid #24613a;color:#9edbb0;border-radius:6px;padding:4px 6px;white-space:nowrap}.hoch .chip{border-color:#a54848;color:#ff9a9a}.task-actions{display:flex;gap:8px;margin-top:12px}.task-actions form{flex:1}.subbtn{background:#0c2815;color:#a4ffbb;border:1px solid #216f3a;border-radius:8px;width:100%;min-height:38px;font-size:12px;font-weight:700}.subbtn.done{background:#0c391b;color:var(--green)}.notice{white-space:pre-wrap;line-height:1.6;color:#e3ffe9;overflow-wrap:anywhere}.notice h2{margin-top:0;font-size:17px}.muted{color:var(--muted);font-size:12px}.logout{color:#9acaab;font-size:12px;text-decoration:none;border-bottom:1px solid #315b3c}.edit{border-color:#00b64a}.hidden{display:none}.footer{text-align:center;color:#47785a;font-size:10px;margin-top:28px;letter-spacing:2px}
 @keyframes pulse{0%,100%{transform:scale(.97);filter:brightness(.9)}50%{transform:scale(1.04);filter:brightness(1.2)}}@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.orb,.orbit{animation:none}}@media(max-width:360px){h1{font-size:23px}.orb-wrap{height:210px}main{padding-left:12px;padding-right:12px}}
 .budget-track{height:10px;background:#10301a;border-radius:10px;overflow:hidden;border:1px solid #256d3c}.budget-fill{height:100%;background:#00ff66;width:{{ budget.percent }}%}.budget-numbers{display:flex;justify-content:space-between;gap:8px;margin:10px 0;font-family:ui-monospace,monospace;font-size:13px;color:#b7ffca}.voice-row{display:flex;gap:9px;align-items:stretch;margin-top:9px}.voice-btn{flex:1;min-height:45px;border:1px solid #248c46;border-radius:10px;background:#092815;color:#aaffc0;font-weight:800;font-size:13px}.voice-btn.recording{background:#54201e;border-color:#ff8275;color:#fff;animation:voiceblink 1s infinite}.voice-btn:disabled{opacity:.55;cursor:wait}.voice-note{color:#91b79b;font-size:11px;line-height:1.5;margin-top:7px;min-height:16px}.voice-note.error{color:#ffb2a9}@keyframes voiceblink{50%{box-shadow:0 0 12px #ff665577}}
+
+/* SEMPA // Neural Core v2 */
+.orb-wrap{isolation:isolate;transition:filter .35s ease}
+.orbit-second{width:218px;height:218px;border:1px solid #14592b;border-style:solid;opacity:.5;animation:spinReverse 24s linear infinite}
+.orbit-second:after{inset:9px;border-style:dotted}
+.orb{position:relative;z-index:2;transition:box-shadow .3s ease,filter .3s ease}
+.orb-spark{position:absolute;width:168px;height:168px;border-radius:50%;border:2px solid transparent;border-top-color:#00ff6688;border-bottom-color:#00ff6644;animation:spin 7s linear infinite;pointer-events:none}
+#neuralCore.thinking .orb{animation:thinkPulse .65s ease-in-out infinite;box-shadow:0 0 35px #00ff66bb,0 0 85px #00ff6677,inset -16px -20px 22px #001507}
+#neuralCore.thinking .orbit{animation-duration:3s;border-color:#32ff79}
+#neuralCore.recording .orb{animation:recordPulse .85s ease-in-out infinite;box-shadow:0 0 32px #ff6b6b99,0 0 80px #ff5a5a44,inset -16px -20px 22px #001507}
+#neuralCore.recording .orbit{border-color:#ff7c77;animation-duration:5s}
+#neuralCore.recording .orb-spark{border-top-color:#ff8275;border-bottom-color:#ff8275}
+#neuralCore.processing .orb{animation:thinkPulse 1.1s ease-in-out infinite}
+@keyframes spinReverse{to{transform:rotate(-360deg)}}
+@keyframes thinkPulse{0%,100%{transform:scale(.94);filter:brightness(.95)}50%{transform:scale(1.1);filter:brightness(1.5)}}
+@keyframes recordPulse{0%,100%{transform:scale(.96);filter:hue-rotate(0deg)}50%{transform:scale(1.09);filter:hue-rotate(-65deg)}}
+.budget-compact{margin:2px 0 15px;padding:10px 12px 9px;background:#06140a;border:1px solid #174e29;border-radius:10px}
+.budget-compact-line{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.5px;color:#82bd91}
+.budget-compact-line strong{font-size:12px;color:#aaffbf;white-space:nowrap}
+.budget-total,.budget-month{color:#6e987a;font-weight:400}
+.budget-compact .budget-track{height:4px;margin:8px 0 6px;border:0;background:#15301d}
+.budget-foot{display:flex;justify-content:space-between;gap:6px;color:#648b6d;font-family:ui-monospace,monospace;font-size:8px;letter-spacing:.3px}
+@media(max-width:360px){.budget-month{display:none}.budget-foot{font-size:7px}}
+@media(prefers-reduced-motion:reduce){.orbit-second,.orb-spark,#neuralCore.thinking .orb,#neuralCore.recording .orb,#neuralCore.processing .orb,#neuralCore.thinking .orbit,#neuralCore.recording .orbit{animation:none}}
 </style>
 </head>
 <body><main>
-<header class="top"><div><div class="eyebrow">MATRIX // AI SYSTEM</div><h1>COMMAND CENTER</h1></div><div class="online mono">ONLINE</div></header>
-<div class="orb-wrap"><div class="orbit"></div><div class="orb" aria-hidden="true"></div></div>
+<header class="top"><div><div class="eyebrow">SEMPA // AI SYSTEM</div><h1>COMMAND CENTER</h1></div><div class="online mono">ONLINE</div></header>
+<div class="orb-wrap" id="neuralCore"><div class="orbit"></div><div class="orbit orbit-second"></div><div class="orb" aria-hidden="true"></div><div class="orb-spark" aria-hidden="true"></div></div>
 <div class="core-label"><strong>NEURAL CORE</strong><div class="status" id="status">● ASSISTANT READY</div></div>
-<section class="panel"><div class="label">◈ API BUDGET // {{ budget.month }}</div><div class="budget-numbers"><strong>{{ budget.used }} € / 2,00 €</strong><span>Noch {{ budget.remaining }} €</span></div><div class="budget-track"><div class="budget-fill"></div></div><p class="muted">Geschätzte Nutzung ab Aktivierung. Kein offizieller Rechnungsstand; andere Apps sind nicht enthalten.</p></section>
+<section class="budget-compact" aria-label="API-Budget"><div class="budget-compact-line"><span>◈ API BUDGET <span class="budget-month">{{ budget.month }}</span></span><strong>{{ budget.used }} € <span class="budget-total">/ 2,00 €</span></strong></div><div class="budget-track" role="progressbar" aria-label="Geschätztes Monatsbudget verbraucht" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ budget.percent|round|int }}"><div class="budget-fill"></div></div><div class="budget-foot"><span>GESCHÄTZT · KEIN RECHNUNGSSTAND</span><span>{{ budget.remaining }} € FREI</span></div></section>
 <section class="panel"><div class="label">SYSTEM INPUT_</div><form method="post" id="questionForm"><input class="field" name="frage" placeholder="Was kann ich für dich tun?" aria-label="Frage an KI" required autocomplete="off"><div class="voice-row"><button class="voice-btn" type="button" data-voice="frage" aria-label="Frage per Sprache aufnehmen">🎙 FRAGE SPRECHEN</button></div><div class="voice-note" data-voice-note="frage" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div><button class="primary" type="submit">↗ KI-TERMINAL ÖFFNEN</button></form></section>
 <div class="quick-grid"><button class="tile" type="button" onclick="document.querySelector('[name=frage]').focus()"><span class="tile-icon">●</span><b>KI TERMINAL</b><small>FRAGEN STELLEN</small></button><form method="post"><input type="hidden" name="tagesplan" value="1"><button class="tile" type="submit"><span class="tile-icon">◎</span><b>MISSION PLAN</b><small>TAGESPLAN ERSTELLEN</small></button></form></div>
 {% if antwort %}<section class="panel notice" id="result"><h2>▸ SYSTEM RESPONSE</h2>{{ antwort }}</section>{% endif %}
@@ -121,15 +145,17 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 <div class="section-head"><span>{{ titel }}</span><span>{{ liste|length }} MISSION{{ 'S' if liste|length != 1 else '' }}</span></div>
 {% for nummer, aufgabe in liste %}<article class="task {{ aufgabe['prioritaet']|e }}"><div class="task-row"><div class="task-text">{{ aufgabe['text'] }}{% if aufgabe.get('uhrzeit') and aufgabe.get('uhrzeit') != 'ohne' %}<div class="muted">◷ {{ aufgabe['uhrzeit'] }}</div>{% endif %}</div><span class="chip">{{ aufgabe['prioritaet']|upper }}</span></div><div class="task-actions"><form method="post"><button class="subbtn" name="bearbeiten" value="{{ nummer }}">✎ BEARBEITEN</button></form><form method="post"><button class="subbtn done" name="erledigt" value="{{ nummer }}">✓ ERLEDIGT</button></form></div></article>{% else %}<p class="muted">Keine Missionen.</p>{% endfor %}{% endfor %}
 {% if bearbeiten_aufgabe %}<section class="panel edit" id="edit"><div class="label">MISSION BEARBEITEN_</div><form method="post"><input type="hidden" name="speichern_nummer" value="{{ bearbeiten_aufgabe['nummer'] }}"><input class="field" name="bearbeiten_text" value="{{ bearbeiten_aufgabe['text'] }}" required><button class="primary" type="submit">ÄNDERUNGEN SPEICHERN</button></form></section>{% endif %}
-<div class="footer">MATRIX AI // <a class="logout" href="/logout">ABMELDEN ↗</a></div>
+<div class="footer">SEMPA AI // <a class="logout" href="/logout">ABMELDEN ↗</a></div>
 </main><script>
 const f=document.getElementById('questionForm');
-f.addEventListener('submit',()=>{document.getElementById('status').textContent='◉ KI DENKT …'});
+const core=document.getElementById('neuralCore');
+function coreMode(mode){core.classList.remove('thinking','recording','processing');if(mode)core.classList.add(mode)}
+f.addEventListener('submit',()=>{document.getElementById('status').textContent='◉ KI DENKT …';coreMode('thinking')});
 if(location.hash==='#edit'){document.getElementById('edit')?.scrollIntoView({behavior:'smooth'})}
 let active=null;
 const voiceButtons=[...document.querySelectorAll('[data-voice]')];
 function note(target,message,error=false){const el=document.querySelector('[data-voice-note="'+target+'"]');el.textContent=message;el.classList.toggle('error',error)}
-function resetVoice(){voiceButtons.forEach(b=>{b.disabled=false;b.classList.remove('recording');b.textContent=b.dataset.voice==='frage'?'🎙 FRAGE SPRECHEN':'🎙 AUFGABE SPRECHEN'});active=null}
+function resetVoice(){coreMode(null);document.getElementById('status').textContent='● ASSISTANT READY';voiceButtons.forEach(b=>{b.disabled=false;b.classList.remove('recording');b.textContent=b.dataset.voice==='frage'?'🎙 FRAGE SPRECHEN':'🎙 AUFGABE SPRECHEN'});active=null}
 async function startVoice(target){
  if(active){if(active.target===target && active.recorder.state==='recording'){active.recorder.stop()}return}
  if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder){note(target,'Aufnahme nicht unterstützt. Bitte iPhone-Tastaturmikrofon verwenden.',true);return}
@@ -141,7 +167,7 @@ async function startVoice(target){
   const mime=types.find(t=>MediaRecorder.isTypeSupported(t));
   const recorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
   const chunks=[];let timeout;
-  active={target,recorder};
+  active={target,recorder};coreMode('recording');document.getElementById('status').textContent='◉ VOICE RECORDING';
   voiceButtons.forEach(b=>{b.disabled=b!==btn});btn.classList.add('recording');btn.textContent='■ AUFNAHME STOPPEN';
   note(target,'Aufnahme läuft … zum Beenden erneut tippen.');
   recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
@@ -149,7 +175,7 @@ async function startVoice(target){
   recorder.onstop=async()=>{
    clearTimeout(timeout);stream.getTracks().forEach(t=>t.stop());
    btn.classList.remove('recording');btn.textContent='⌛ WIRD ERKANNT …';btn.disabled=true;
-   note(target,'Sprache wird erkannt …');
+   note(target,'Sprache wird erkannt …');coreMode('processing');document.getElementById('status').textContent='◉ VOICE PROCESSING';
    const type=recorder.mimeType||mime||'audio/mp4';
    const extension=type.includes('webm')?'webm':type.includes('ogg')?'ogg':'mp4';
    const blob=new Blob(chunks,{type});
