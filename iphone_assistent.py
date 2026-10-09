@@ -155,11 +155,46 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 .system-stat small{display:block;color:#8bdbac;font-size:9px;margin-top:5px;overflow-wrap:anywhere}
 @media(max-width:360px){.brain-stage{height:240px}.brain-holo{height:225px}.brain-hud{font-size:8px;padding:4px}.system-stat b{font-size:8px}}
 @media(prefers-reduced-motion:reduce){.brain-holo,.brain-lines,.brain-circuit,.brain-ring{animation:none!important}}
+
+/* SEMPA 2.1 – Tiefenstaffelung ohne Drehbewegung */
+.brain-stage{isolation:isolate;perspective:650px;background:radial-gradient(ellipse 145px 110px at 50% 47%,#0b74403d,transparent 85%),radial-gradient(ellipse at center,#063c2366 0%,transparent 66%)}
+.brain-volume{position:absolute;z-index:0;width:200px;height:190px;border-radius:50%;background:radial-gradient(ellipse at 40% 35%,#91ffc04d 0%,#00cf6e24 29%,#00633a22 55%,transparent 75%);filter:blur(15px);animation:volumeBreath 5.5s ease-in-out infinite}
+.brain-stage .brain-holo{position:absolute;top:12px;left:50%;margin-left:-165px;transform-origin:center center;animation:brainHover 5.5s ease-in-out infinite;filter:drop-shadow(0 0 7px #75ffacaa) drop-shadow(0 0 18px #00f77677)}
+.brain-stage .brain-layer{pointer-events:none}
+.brain-stage .brain-rear{z-index:1;opacity:.3;filter:blur(8px) drop-shadow(0 0 20px #00ff7c);animation:brainRearHover 5.5s ease-in-out infinite}
+.brain-stage .brain-mid{z-index:2;opacity:.46;filter:blur(3px) drop-shadow(0 0 13px #00ff8b);animation:brainMidHover 5.5s ease-in-out infinite}
+.brain-stage .brain-holo:not(.brain-layer){z-index:3}
+.brain-stage .brain-ring{z-index:0;opacity:.5}
+.brain-stage .brain-hud{z-index:4}
+@keyframes brainHover{0%,100%{transform:translate3d(0,5px,18px) scale(1)}50%{transform:translate3d(0,-7px,18px) scale(1.015)}}
+@keyframes brainRearHover{0%,100%{transform:translate3d(11px,12px,-25px) scale(1.06)}50%{transform:translate3d(11px,-1px,-25px) scale(1.075)}}
+@keyframes brainMidHover{0%,100%{transform:translate3d(-6px,8px,0) scale(1.025)}50%{transform:translate3d(-6px,-4px,0) scale(1.04)}}
+@keyframes volumeBreath{0%,100%{opacity:.65;transform:scale(.95)}50%{opacity:1;transform:scale(1.08)}}
+#neuralCore.thinking .brain-holo:not(.brain-layer){filter:drop-shadow(0 0 12px #a2ffca) drop-shadow(0 0 26px #00ff80)}
+#neuralCore.recording .brain-holo:not(.brain-layer){filter:drop-shadow(0 0 20px #ff7777)}
+@media(max-width:360px){.brain-stage .brain-holo{top:4px}}
+@media(prefers-reduced-motion:reduce){.brain-stage .brain-holo,.brain-volume{animation:none!important}}
 </style>
 </head>
 <body><main>
 <header class="top"><div><div class="eyebrow">SEMPA // AI SYSTEM</div><h1>COMMAND CENTER</h1></div><div class="online mono">ONLINE</div></header>
-<div class="orb-wrap brain-stage" id="neuralCore"><div class="brain-ring"></div><div class="brain-ring brain-ring-two"></div><svg class="brain-holo" viewBox="0 0 320 250" role="img" aria-label="Animiertes holografisches KI-Gehirn">
+<div class="orb-wrap brain-stage" id="neuralCore"><div class="brain-ring"></div><div class="brain-ring brain-ring-two"></div><div class="brain-volume" aria-hidden="true"></div><svg class="brain-holo brain-layer brain-rear" aria-hidden="true" viewBox="0 0 320 250" role="img" aria-label="Animiertes holografisches KI-Gehirn">
+<defs><filter id="neonGlow-rear"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="brainLight-rear" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b8ffd3"/><stop offset=".5" stop-color="#00ff86"/><stop offset="1" stop-color="#008f53"/></linearGradient></defs>
+<g class="brain-circuit" stroke="#00ff88" stroke-width=".8" fill="none" opacity=".5"><path d="M10 75H72L95 97M310 74H247L226 95M15 175H80L105 156M305 173H242L217 155M58 25L103 70M263 25L218 70M68 223L109 181M252 223L212 181"/><circle cx="10" cy="75" r="3"/><circle cx="310" cy="74" r="3"/><circle cx="15" cy="175" r="3"/><circle cx="305" cy="173" r="3"/></g>
+<g class="brain-lines" fill="none" stroke="url(#brainLight-rear)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" filter="url(#neonGlow-rear)">
+<path d="M160 45C139 21 107 37 98 56C68 53 53 78 61 99C43 119 51 147 71 156C70 183 94 198 117 190C131 204 153 197 160 185C169 198 191 204 205 190C229 198 252 181 249 157C272 144 275 119 257 99C264 76 246 52 220 56C207 34 180 25 160 45Z"/>
+<path d="M160 45V185M98 56C111 73 99 83 88 91C104 96 114 112 104 127M61 99C83 99 83 120 72 133M71 156C93 144 105 155 105 171M117 190C120 169 143 166 160 185M119 65C140 64 144 84 132 98C151 108 151 127 136 137C149 147 151 165 142 177M95 114C114 105 130 116 126 133M104 151C116 138 130 147 132 160"/>
+<path d="M220 56C209 74 223 84 233 92C216 100 207 112 218 127M257 99C235 99 235 119 249 133M249 157C227 144 215 155 215 171M205 190C200 168 177 166 160 185M201 65C181 64 176 84 188 98C170 108 170 127 185 137C171 147 169 165 179 177M225 114C206 105 191 116 195 133M216 151C203 138 190 147 188 160"/>
+<path d="M160 185L155 211L170 219L164 236M160 203L146 224M169 216L181 226"/>
+</g><g fill="#baffd2" filter="url(#neonGlow-rear)"><circle cx="98" cy="56" r="2.6"/><circle cx="132" cy="98" r="2.6"/><circle cx="104" cy="151" r="2.6"/><circle cx="188" cy="98" r="2.6"/><circle cx="216" cy="151" r="2.6"/><circle cx="160" cy="185" r="3.5"/></g></svg><svg class="brain-holo brain-layer brain-mid" aria-hidden="true" viewBox="0 0 320 250" role="img" aria-label="Animiertes holografisches KI-Gehirn">
+<defs><filter id="neonGlow-mid"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="brainLight-mid" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b8ffd3"/><stop offset=".5" stop-color="#00ff86"/><stop offset="1" stop-color="#008f53"/></linearGradient></defs>
+<g class="brain-circuit" stroke="#00ff88" stroke-width=".8" fill="none" opacity=".5"><path d="M10 75H72L95 97M310 74H247L226 95M15 175H80L105 156M305 173H242L217 155M58 25L103 70M263 25L218 70M68 223L109 181M252 223L212 181"/><circle cx="10" cy="75" r="3"/><circle cx="310" cy="74" r="3"/><circle cx="15" cy="175" r="3"/><circle cx="305" cy="173" r="3"/></g>
+<g class="brain-lines" fill="none" stroke="url(#brainLight-mid)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" filter="url(#neonGlow-mid)">
+<path d="M160 45C139 21 107 37 98 56C68 53 53 78 61 99C43 119 51 147 71 156C70 183 94 198 117 190C131 204 153 197 160 185C169 198 191 204 205 190C229 198 252 181 249 157C272 144 275 119 257 99C264 76 246 52 220 56C207 34 180 25 160 45Z"/>
+<path d="M160 45V185M98 56C111 73 99 83 88 91C104 96 114 112 104 127M61 99C83 99 83 120 72 133M71 156C93 144 105 155 105 171M117 190C120 169 143 166 160 185M119 65C140 64 144 84 132 98C151 108 151 127 136 137C149 147 151 165 142 177M95 114C114 105 130 116 126 133M104 151C116 138 130 147 132 160"/>
+<path d="M220 56C209 74 223 84 233 92C216 100 207 112 218 127M257 99C235 99 235 119 249 133M249 157C227 144 215 155 215 171M205 190C200 168 177 166 160 185M201 65C181 64 176 84 188 98C170 108 170 127 185 137C171 147 169 165 179 177M225 114C206 105 191 116 195 133M216 151C203 138 190 147 188 160"/>
+<path d="M160 185L155 211L170 219L164 236M160 203L146 224M169 216L181 226"/>
+</g><g fill="#baffd2" filter="url(#neonGlow-mid)"><circle cx="98" cy="56" r="2.6"/><circle cx="132" cy="98" r="2.6"/><circle cx="104" cy="151" r="2.6"/><circle cx="188" cy="98" r="2.6"/><circle cx="216" cy="151" r="2.6"/><circle cx="160" cy="185" r="3.5"/></g></svg><svg class="brain-holo" viewBox="0 0 320 250" role="img" aria-label="Animiertes holografisches KI-Gehirn">
 <defs><filter id="neonGlow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="brainLight" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b8ffd3"/><stop offset=".5" stop-color="#00ff86"/><stop offset="1" stop-color="#008f53"/></linearGradient></defs>
 <g class="brain-circuit" stroke="#00ff88" stroke-width=".8" fill="none" opacity=".5"><path d="M10 75H72L95 97M310 74H247L226 95M15 175H80L105 156M305 173H242L217 155M58 25L103 70M263 25L218 70M68 223L109 181M252 223L212 181"/><circle cx="10" cy="75" r="3"/><circle cx="310" cy="74" r="3"/><circle cx="15" cy="175" r="3"/><circle cx="305" cy="173" r="3"/></g>
 <g class="brain-lines" fill="none" stroke="url(#brainLight)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" filter="url(#neonGlow)">
