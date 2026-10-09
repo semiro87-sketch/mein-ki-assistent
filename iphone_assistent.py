@@ -2,8 +2,9 @@
 import json
 import os
 import re
+import io
 import psycopg
-from flask import Flask, request, render_template_string, session, redirect
+from flask import Flask, request, render_template_string, session, redirect, jsonify
 from openai import OpenAI
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "lokal-nur-zum-testen")
@@ -24,23 +25,71 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 .orb-wrap{height:236px;display:grid;place-items:center;position:relative}.orbit{position:absolute;width:188px;height:188px;border:1px dashed #12622e;border-radius:50%;animation:spin 32s linear infinite}.orbit:after{content:"";position:absolute;inset:16px;border:1px solid #155b2b;border-radius:50%}.orb{width:136px;height:136px;border-radius:50%;background:radial-gradient(circle at 36% 28%,#e6ffe9 0%,#71ff94 9%,#00f45b 25%,#007e30 52%,#001807 76%);box-shadow:0 0 17px #00ff6677,0 0 58px #00ff6633,inset -16px -20px 22px #001507;animation:pulse 3.2s ease-in-out infinite}.orb:after{content:"";display:block;width:50px;height:50px;border:1px solid #8dffb1;border-radius:50%;position:relative;left:39px;top:38px;box-shadow:0 0 12px #00ff66}.core-label{text-align:center;margin:-6px 0 24px}.core-label strong{display:block;font-size:19px;letter-spacing:1px}.status{color:var(--green);font-size:10px;margin-top:7px}
 .panel{background:linear-gradient(150deg,#071b0e,#06120a);border:1px solid #17632f;border-radius:15px;padding:15px;margin:12px 0;box-shadow:0 0 20px #00ff6609}.section-head{color:var(--green);font-size:11px;font-weight:800;margin:25px 0 11px;display:flex;justify-content:space-between;align-items:center}.label{font-size:10px;color:var(--green);font-family:ui-monospace,monospace;letter-spacing:1px;margin-bottom:8px}.field{display:block;width:100%;border:1px solid #215d34;background:#07140c;color:white;border-radius:10px;padding:13px;font:inherit;outline:none;min-height:48px}.field:focus{border-color:var(--green);box-shadow:0 0 0 2px #00ff6622}.field::placeholder{color:#9caea1}button{font:inherit;cursor:pointer}.primary{width:100%;background:linear-gradient(100deg,#00cb52,#00ff73);color:#00200a;border:0;border-radius:10px;padding:13px;font-weight:850;min-height:46px;margin-top:9px}.primary:active{transform:scale(.99)}.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tile{background:#071b0e;border:1px solid #166c32;border-radius:13px;padding:17px 12px;text-align:left;color:white;width:100%;min-height:115px}.tile-icon{font-size:23px;color:var(--green);display:block;margin-bottom:16px}.tile b{display:block;font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.4px}.tile small{display:block;color:#77ad86;font-size:10px;margin-top:5px}.task{background:#07180d;border:1px solid #185a2c;border-radius:12px;padding:13px;margin:9px 0}.task.hoch{border-color:#9a4b4b}.task.niedrig{opacity:.8}.task-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.task-text{line-height:1.4;overflow-wrap:anywhere}.chip{font-size:9px;border:1px solid #24613a;color:#9edbb0;border-radius:6px;padding:4px 6px;white-space:nowrap}.hoch .chip{border-color:#a54848;color:#ff9a9a}.task-actions{display:flex;gap:8px;margin-top:12px}.task-actions form{flex:1}.subbtn{background:#0c2815;color:#a4ffbb;border:1px solid #216f3a;border-radius:8px;width:100%;min-height:38px;font-size:12px;font-weight:700}.subbtn.done{background:#0c391b;color:var(--green)}.notice{white-space:pre-wrap;line-height:1.6;color:#e3ffe9;overflow-wrap:anywhere}.notice h2{margin-top:0;font-size:17px}.muted{color:var(--muted);font-size:12px}.logout{color:#9acaab;font-size:12px;text-decoration:none;border-bottom:1px solid #315b3c}.edit{border-color:#00b64a}.hidden{display:none}.footer{text-align:center;color:#47785a;font-size:10px;margin-top:28px;letter-spacing:2px}
 @keyframes pulse{0%,100%{transform:scale(.97);filter:brightness(.9)}50%{transform:scale(1.04);filter:brightness(1.2)}}@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.orb,.orbit{animation:none}}@media(max-width:360px){h1{font-size:23px}.orb-wrap{height:210px}main{padding-left:12px;padding-right:12px}}
+.voice-row{display:flex;gap:9px;align-items:stretch;margin-top:9px}.voice-btn{flex:1;min-height:45px;border:1px solid #248c46;border-radius:10px;background:#092815;color:#aaffc0;font-weight:800;font-size:13px}.voice-btn.recording{background:#54201e;border-color:#ff8275;color:#fff;animation:voiceblink 1s infinite}.voice-btn:disabled{opacity:.55;cursor:wait}.voice-note{color:#91b79b;font-size:11px;line-height:1.5;margin-top:7px;min-height:16px}.voice-note.error{color:#ffb2a9}@keyframes voiceblink{50%{box-shadow:0 0 12px #ff665577}}
 </style>
 </head>
 <body><main>
 <header class="top"><div><div class="eyebrow">MATRIX // AI SYSTEM</div><h1>COMMAND CENTER</h1></div><div class="online mono">ONLINE</div></header>
 <div class="orb-wrap"><div class="orbit"></div><div class="orb" aria-hidden="true"></div></div>
 <div class="core-label"><strong>NEURAL CORE</strong><div class="status" id="status">● ASSISTANT READY</div></div>
-<section class="panel"><div class="label">SYSTEM INPUT_</div><form method="post" id="questionForm"><input class="field" name="frage" placeholder="Was kann ich für dich tun?" aria-label="Frage an KI" required autocomplete="off"><button class="primary" type="submit">↗ KI-TERMINAL ÖFFNEN</button></form></section>
+<section class="panel"><div class="label">SYSTEM INPUT_</div><form method="post" id="questionForm"><input class="field" name="frage" placeholder="Was kann ich für dich tun?" aria-label="Frage an KI" required autocomplete="off"><div class="voice-row"><button class="voice-btn" type="button" data-voice="frage" aria-label="Frage per Sprache aufnehmen">🎙 FRAGE SPRECHEN</button></div><div class="voice-note" data-voice-note="frage" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div><button class="primary" type="submit">↗ KI-TERMINAL ÖFFNEN</button></form></section>
 <div class="quick-grid"><button class="tile" type="button" onclick="document.querySelector('[name=frage]').focus()"><span class="tile-icon">●</span><b>KI TERMINAL</b><small>FRAGEN STELLEN</small></button><form method="post"><input type="hidden" name="tagesplan" value="1"><button class="tile" type="submit"><span class="tile-icon">◎</span><b>MISSION PLAN</b><small>TAGESPLAN ERSTELLEN</small></button></form></div>
 {% if antwort %}<section class="panel notice" id="result"><h2>▸ SYSTEM RESPONSE</h2>{{ antwort }}</section>{% endif %}
 <div class="section-head"><span>▱ ACTIVE MISSIONS</span><span>+ NEU</span></div>
-<section class="panel"><div class="label">NEUE MISSION_</div><form method="post"><input class="field" name="neue_aufgabe" placeholder="z. B. Heute 16:00 einkaufen" required autocomplete="off"><button class="primary" type="submit">+ AUFGABE HINZUFÜGEN</button></form></section>
+<section class="panel"><div class="label">NEUE MISSION_</div><form method="post"><input class="field" name="neue_aufgabe" placeholder="z. B. Heute 16:00 einkaufen" required autocomplete="off"><div class="voice-row"><button class="voice-btn" type="button" data-voice="neue_aufgabe" aria-label="Aufgabe per Sprache aufnehmen">🎙 AUFGABE SPRECHEN</button></div><div class="voice-note" data-voice-note="neue_aufgabe" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div><button class="primary" type="submit">+ AUFGABE HINZUFÜGEN</button></form></section>
 {% for titel, liste in [('HEUTE', heute), ('MORGEN', morgen), ('SPÄTER', spaeter)] %}
 <div class="section-head"><span>{{ titel }}</span><span>{{ liste|length }} MISSION{{ 'S' if liste|length != 1 else '' }}</span></div>
 {% for nummer, aufgabe in liste %}<article class="task {{ aufgabe['prioritaet']|e }}"><div class="task-row"><div class="task-text">{{ aufgabe['text'] }}{% if aufgabe.get('uhrzeit') and aufgabe.get('uhrzeit') != 'ohne' %}<div class="muted">◷ {{ aufgabe['uhrzeit'] }}</div>{% endif %}</div><span class="chip">{{ aufgabe['prioritaet']|upper }}</span></div><div class="task-actions"><form method="post"><button class="subbtn" name="bearbeiten" value="{{ nummer }}">✎ BEARBEITEN</button></form><form method="post"><button class="subbtn done" name="erledigt" value="{{ nummer }}">✓ ERLEDIGT</button></form></div></article>{% else %}<p class="muted">Keine Missionen.</p>{% endfor %}{% endfor %}
 {% if bearbeiten_aufgabe %}<section class="panel edit" id="edit"><div class="label">MISSION BEARBEITEN_</div><form method="post"><input type="hidden" name="speichern_nummer" value="{{ bearbeiten_aufgabe['nummer'] }}"><input class="field" name="bearbeiten_text" value="{{ bearbeiten_aufgabe['text'] }}" required><button class="primary" type="submit">ÄNDERUNGEN SPEICHERN</button></form></section>{% endif %}
 <div class="footer">MATRIX AI // <a class="logout" href="/logout">ABMELDEN ↗</a></div>
-</main><script>const f=document.getElementById('questionForm');f.addEventListener('submit',()=>{document.getElementById('status').textContent='◉ KI DENKT …'});if(location.hash==='#edit'){document.getElementById('edit')?.scrollIntoView({behavior:'smooth'})}</script></body></html>
+</main><script>
+const f=document.getElementById('questionForm');
+f.addEventListener('submit',()=>{document.getElementById('status').textContent='◉ KI DENKT …'});
+if(location.hash==='#edit'){document.getElementById('edit')?.scrollIntoView({behavior:'smooth'})}
+let active=null;
+const voiceButtons=[...document.querySelectorAll('[data-voice]')];
+function note(target,message,error=false){const el=document.querySelector('[data-voice-note="'+target+'"]');el.textContent=message;el.classList.toggle('error',error)}
+function resetVoice(){voiceButtons.forEach(b=>{b.disabled=false;b.classList.remove('recording');b.textContent=b.dataset.voice==='frage'?'🎙 FRAGE SPRECHEN':'🎙 AUFGABE SPRECHEN'});active=null}
+async function startVoice(target){
+ if(active){if(active.target===target && active.recorder.state==='recording'){active.recorder.stop()}return}
+ if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder){note(target,'Aufnahme nicht unterstützt. Bitte iPhone-Tastaturmikrofon verwenden.',true);return}
+ const btn=document.querySelector('[data-voice="'+target+'"]');
+ let stream;
+ try{
+  stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];
+  const mime=types.find(t=>MediaRecorder.isTypeSupported(t));
+  const recorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
+  const chunks=[];let timeout;
+  active={target,recorder};
+  voiceButtons.forEach(b=>{b.disabled=b!==btn});btn.classList.add('recording');btn.textContent='■ AUFNAHME STOPPEN';
+  note(target,'Aufnahme läuft … zum Beenden erneut tippen.');
+  recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+  recorder.onerror=()=>{note(target,'Aufnahme fehlgeschlagen. Bitte erneut versuchen.',true)};
+  recorder.onstop=async()=>{
+   clearTimeout(timeout);stream.getTracks().forEach(t=>t.stop());
+   btn.classList.remove('recording');btn.textContent='⌛ WIRD ERKANNT …';btn.disabled=true;
+   note(target,'Sprache wird erkannt …');
+   const type=recorder.mimeType||mime||'audio/mp4';
+   const extension=type.includes('webm')?'webm':type.includes('ogg')?'ogg':'mp4';
+   const blob=new Blob(chunks,{type});
+   if(!blob.size){note(target,'Keine Sprache aufgenommen.',true);resetVoice();return}
+   if(blob.size>10*1024*1024){note(target,'Aufnahme zu groß. Bitte kürzer sprechen.',true);resetVoice();return}
+   const data=new FormData();data.append('audio',blob,'aufnahme.'+extension);
+   try{
+    const response=await fetch('/api/transkribieren',{method:'POST',body:data,credentials:'same-origin'});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.fehler||'Transkription fehlgeschlagen.');
+    const input=document.querySelector('[name="'+target+'"]');input.value=result.text||'';input.focus();
+    note(target,'✓ Text erkannt. Bitte prüfen und anschließend selbst absenden.');
+   }catch(e){note(target,e.message||'Verbindung fehlgeschlagen.',true)}finally{resetVoice()}
+  };
+  recorder.start();
+  timeout=setTimeout(()=>{if(recorder.state==='recording')recorder.stop()},30000);
+ }catch(e){if(stream)stream.getTracks().forEach(t=>t.stop());resetVoice();note(target,'Mikrofon nicht verfügbar oder Berechtigung verweigert.',true)}
+}
+voiceButtons.forEach(b=>b.addEventListener('click',()=>startVoice(b.dataset.voice)));
+</script></body></html>
 """
 
 def lade_aufgaben():
@@ -215,6 +264,36 @@ def startseite():
     morgen = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"]
     spaeter = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") not in ("heute", "morgen")]
     return render_template_string(HTML, antwort=antwort, heute=heute, morgen=morgen, spaeter=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe)
+
+
+@app.route("/api/transkribieren", methods=["POST"])
+def api_transkribieren():
+    # Nur eingeloggte Nutzer dürfen kostenpflichtige Transkriptionen auslösen.
+    if not session.get("angemeldet"):
+        return jsonify(fehler="Bitte erneut anmelden."), 401
+    audio = request.files.get("audio")
+    if audio is None:
+        return jsonify(fehler="Keine Audioaufnahme erhalten."), 400
+    # 10 MB sind für die auf 30 Sekunden begrenzte Aufnahme ausreichend.
+    audio.stream.seek(0, 2)
+    size = audio.stream.tell()
+    audio.stream.seek(0)
+    if size < 1 or size > 10 * 1024 * 1024:
+        return jsonify(fehler="Die Aufnahme ist leer oder zu groß (max. 10 MB)."), 400
+    name = (audio.filename or "").lower()
+    extension = name.rsplit(".", 1)[-1] if "." in name else ""
+    if extension not in {"mp4", "m4a", "webm", "wav", "ogg", "mp3"}:
+        return jsonify(fehler="Dieses Audioformat wird nicht unterstützt."), 400
+    try:
+        recording = io.BytesIO(audio.read())
+        recording.name = "aufnahme." + extension
+        result = client.audio.transcriptions.create(
+            model="gpt-4o-mini-transcribe", file=recording, language="de"
+        )
+        return jsonify(text=result.text)
+    except Exception:
+        app.logger.exception("Spracherkennung fehlgeschlagen")
+        return jsonify(fehler="Spracherkennung momentan nicht verfügbar. Bitte erneut versuchen."), 502
 
 @app.route("/api/frage", methods=["POST"])
 def api_frage():
