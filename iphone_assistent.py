@@ -444,7 +444,7 @@ def login():
             return redirect("/")
         fehler = "Falsches Passwort."
 
-    return f"""
+    return render_template_string("""
     <!DOCTYPE html>
     <html lang="de">
     <head>
@@ -457,10 +457,10 @@ def login():
             <input type="password" name="passwort" placeholder="Passwort" required>
             <button type="submit">Anmelden</button>
         </form>
-        <p>{fehler}</p>
+        <p>{{ fehler }}</p>
     </body>
     </html>
-    """
+    """, fehler=fehler)
 
 @app.route("/logout")
 def logout():
