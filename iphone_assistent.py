@@ -10,6 +10,7 @@ from decimal import Decimal
 import psycopg
 from flask import Flask, request, render_template_string, session, redirect, jsonify
 from openai import OpenAI
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "lokal-nur-zum-testen")
 client = OpenAI()
@@ -238,6 +239,17 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 <div class="muted chat-hint">Die letzten 10 Frage-Antwort-Paare · Beim Abmelden gelöscht.</div>
 </section>
 {% if antwort and (not frage_gesendet or not chat_nachrichten or chat_nachrichten[-1][1] != antwort) %}<section class="panel notice" id="result"><h2>▸ SYSTEM RESPONSE</h2>{{ antwort }}</section>{% endif %}
+<div class="section-head"><span>✦ MATRIX SMART PLAN 2.7</span></div>
+<section class="panel"><div class="label">MEHRERE MISSIONEN ERKENNEN_</div>
+<form method="post"><input class="field" name="smart_missions" maxlength="1200" placeholder="Morgen um 9 Uhr Zahnarzt, danach einkaufen und abends Sport" required autocomplete="off">
+<div class="voice-row"><button class="voice-btn" type="button" data-voice="smart_missions">🎙 PLAN SPRECHEN</button></div>
+<div class="voice-note" data-voice-note="smart_missions" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div>
+<button class="primary" type="submit">✦ MISSIONEN PRÜFEN</button></form>
+<p class="muted">Kostenlose Erkennung · Vor dem Speichern bestätigen · Unbekannte Uhrzeiten bleiben offen.</p></section>
+{% if smart_preview %}<section class="panel" id="smart-preview"><div class="label">VORSCHAU – NOCH NICHT GESPEICHERT_</div>
+{% for item in smart_preview %}<article class="task"><div class="task-text">{{ item.text }}</div><div class="muted">{{ item.faelligkeit|upper }} · {{ item.uhrzeit }} · {{ item.prioritaet|upper }}</div></article>{% endfor %}
+<form method="post"><input type="hidden" name="smart_confirm" value="{{ smart_token }}"><button class="primary" type="submit">✓ {{ smart_preview|length }} MISSIONEN SPEICHERN</button></form>
+<p class="muted">Bitte kontrolliere Termine und Aufteilung. Zum Korrigieren den Satz oben neu eingeben.</p></section>{% endif %}
 <div class="section-head"><span>▱ ACTIVE MISSIONS</span><span>+ NEU</span></div>
 <section class="panel"><div class="label">NEUE MISSION_</div><form method="post"><input class="field" name="neue_aufgabe" placeholder="z. B. Heute 16:00 einkaufen" required autocomplete="off"><div class="voice-row"><button class="voice-btn" type="button" data-voice="neue_aufgabe" aria-label="Aufgabe per Sprache aufnehmen">🎙 AUFGABE SPRECHEN</button></div><div class="voice-note" data-voice-note="neue_aufgabe" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div><button class="primary" type="submit">+ AUFGABE HINZUFÜGEN</button></form></section>
 {% for titel, liste in [('HEUTE', heute), ('MORGEN', morgen), ('SPÄTER', spaeter)] %}
@@ -454,6 +466,48 @@ def lade_aufgaben():
     except FileNotFoundError:
         return []
 
+# SEMPA 2.7: Vorschau ohne KI-Kosten, Speichern erst nach Bestätigung.
+def mission_parts(text):
+    raw = re.sub(r"^\s*(?:matrix[, :]*)?(?:ich muss|ich möchte|ich will|bitte|plane|erinnere mich(?: daran)?|morgen muss ich|heute muss ich)\s*", "", text.strip(), flags=re.I)
+    chunks = re.split(r"\s*(?:[,;\n]+|\b(?:und danach|danach|anschließend|und abends|und morgens|und mittags|und dann)\b)\s*", raw, flags=re.I)
+    chunks = [c.strip(" .,-") for c in chunks if c.strip(" .,-")][:10]
+    if not chunks:
+        return []
+    day = "morgen" if re.search(r"\bmorgen\b", text, re.I) else "heute" if re.search(r"\bheute\b", text, re.I) else "ohne"
+    result = []
+    for chunk in chunks:
+        due = "morgen" if re.search(r"\bmorgen\b", chunk, re.I) else "heute" if re.search(r"\bheute\b", chunk, re.I) else day
+        match = re.search(r"\b(?:um\s+)?([01]?\d|2[0-3])(?::([0-5]\d))?\s*(?:uhr)\b|\b([01]?\d|2[0-3]):([0-5]\d)\b", chunk, re.I)
+        hour = "ohne"
+        if match:
+            h = match.group(1) or match.group(3)
+            m = match.group(2) or match.group(4) or "00"
+            hour = f"{int(h):02d}:{m}"
+        low = chunk.lower()
+        priority = "niedrig" if "nicht dringend" in low or "unwichtig" in low else "hoch" if any(w in low for w in ("dringend", "wichtig", "zahnarzt", "arzttermin")) else "normal"
+        cleaned = re.sub(r"^\s*(?:und|ich muss|ich möchte|muss ich)\s+", "", chunk, flags=re.I).strip()
+        if cleaned:
+            result.append({"text": cleaned[:300], "prioritaet": priority, "faelligkeit": due, "uhrzeit": hour})
+    return result
+
+
+def mission_token():
+    return URLSafeTimedSerializer(app.secret_key, salt="sempa-missions-v27")
+
+
+def save_missions(items):
+    if os.environ.get("DATABASE_URL"):
+        with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+            with conn.cursor() as cur:
+                for a in items:
+                    cur.execute("INSERT INTO aufgaben (text, prioritaet, faelligkeit, uhrzeit) VALUES (%s, %s, %s, %s)", (a["text"], a["prioritaet"], a["faelligkeit"], a["uhrzeit"]))
+    else:
+        tasks = lade_aufgaben()
+        tasks.extend(items)
+        with open("aufgaben.json", "w", encoding="utf-8") as f:
+            json.dump(tasks, f, ensure_ascii=False, indent=2)
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     fehler = ""
@@ -505,6 +559,8 @@ def startseite():
     antwort = ""
     frage_gesendet = False
     bearbeiten_aufgabe = None
+    smart_preview = []
+    smart_token = ""
 
     if request.method == "POST":
         neue_aufgabe = request.form.get("neue_aufgabe", "").strip()
@@ -512,7 +568,30 @@ def startseite():
         bearbeiten = request.form.get("bearbeiten")
         erledigt = request.form.get("erledigt")
 
-        if neue_aufgabe:
+        if request.form.get("smart_missions", "").strip():
+            smart_preview = mission_parts(request.form["smart_missions"][:1200])
+            if smart_preview:
+                smart_token = mission_token().dumps({"items": smart_preview, "chat": _chat_id()})
+                antwort = "Bitte die erkannten Missionen kontrollieren und bestätigen."
+            else:
+                antwort = "Keine Mission erkannt. Bitte den Satz anders formulieren."
+        elif request.form.get("smart_confirm"):
+            try:
+                data = mission_token().loads(request.form["smart_confirm"], max_age=900)
+                if data.get("chat") != _chat_id():
+                    raise BadSignature("Sitzung passt nicht")
+                items = data["items"]
+                if not isinstance(items, list) or not (1 <= len(items) <= 10):
+                    raise BadSignature("Ungültige Aufgaben")
+                for a in items:
+                    if not isinstance(a, dict) or set(a) != {"text", "prioritaet", "faelligkeit", "uhrzeit"} or not isinstance(a["text"], str) or len(a["text"]) > 300 or a["prioritaet"] not in ("hoch", "normal", "niedrig") or a["faelligkeit"] not in ("heute", "morgen", "ohne") or not isinstance(a["uhrzeit"], str) or not re.fullmatch(r"ohne|(?:[01]\d|2[0-3]):[0-5]\d", a["uhrzeit"]):
+                        raise BadSignature("Ungültige Aufgabe")
+                save_missions(items)
+                aufgaben = lade_aufgaben()
+                antwort = f"✓ {len(items)} Missionen gespeichert."
+            except (BadSignature, SignatureExpired, KeyError, TypeError, ValueError):
+                antwort = "Vorschau abgelaufen oder ungültig. Bitte den Plan erneut prüfen."
+        elif neue_aufgabe:
             prioritaet = "normal"
             faelligkeit = "ohne"
             uhrzeit = "ohne"
@@ -602,7 +681,7 @@ def startseite():
     except Exception:
         app.logger.exception("Chatverlauf konnte nicht geladen werden")
         chat_nachrichten = []
-    return render_template_string(HTML, antwort=antwort, frage_gesendet=frage_gesendet, chat_nachrichten=chat_nachrichten, heute=heute, morgen=morgen, spaeter=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe, budget=budget_display())
+    return render_template_string(HTML, antwort=antwort, frage_gesendet=frage_gesendet, chat_nachrichten=chat_nachrichten, heute=heute, morgen=morgen, spaeter=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe, budget=budget_display(), smart_preview=smart_preview, smart_token=smart_token)
 
 
 @app.route("/api/transkribieren", methods=["POST"])
