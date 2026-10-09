@@ -129,12 +129,47 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 .budget-foot{display:flex;justify-content:space-between;gap:6px;color:#648b6d;font-family:ui-monospace,monospace;font-size:8px;letter-spacing:.3px}
 @media(max-width:360px){.budget-month{display:none}.budget-foot{font-size:7px}}
 @media(prefers-reduced-motion:reduce){.orbit-second,.orb-spark,#neuralCore.thinking .orb,#neuralCore.recording .orb,#neuralCore.processing .orb,#neuralCore.thinking .orbit,#neuralCore.recording .orbit{animation:none}}
+
+/* SEMPA 2.0 – holografisches Gehirn und kompaktes Control Dashboard */
+.top h1{font-size:clamp(21px,5vw,27px)}
+.brain-stage{height:270px;overflow:hidden;background:radial-gradient(ellipse at center,#063c2366 0%,transparent 66%)}
+.brain-holo{position:relative;z-index:2;width:min(95%,330px);height:245px;overflow:visible;filter:drop-shadow(0 0 12px #00ff6688);animation:brainFloat 4s ease-in-out infinite}
+.brain-lines{stroke-dasharray:800;stroke-dashoffset:0;animation:brainGlow 4s ease-in-out infinite}
+.brain-circuit{animation:circuitBlink 3s ease-in-out infinite}
+.brain-ring{position:absolute;width:245px;height:245px;border:1px dashed #00e67c77;border-radius:50%;box-shadow:0 0 18px #00ff6622;animation:spin 24s linear infinite}
+.brain-ring-two{width:212px;height:212px;border:1px dotted #00ff6688;animation:spinReverse 18s linear infinite}
+.brain-hud{position:absolute;z-index:3;top:62px;border:1px solid #0a9f54;background:#03180de0;border-radius:5px;padding:7px;font:9px ui-monospace,monospace;letter-spacing:1px;color:#7affb1;box-shadow:0 0 10px #00ff6622}
+.brain-hud span{color:#00ff77}.hud-left{left:0}.hud-right{right:0;top:150px}
+#neuralCore.thinking .brain-holo{animation:brainFloat .9s ease-in-out infinite;filter:drop-shadow(0 0 24px #00ff66)}
+#neuralCore.thinking .brain-ring{animation-duration:3s}
+#neuralCore.recording .brain-holo{filter:drop-shadow(0 0 25px #ff7066)}
+#neuralCore.recording .brain-lines{stroke:#ff988a}
+#neuralCore.processing .brain-holo{filter:drop-shadow(0 0 22px #00ff88)}
+@keyframes brainFloat{0%,100%{transform:translateY(3px) scale(.98)}50%{transform:translateY(-5px) scale(1.02)}}
+@keyframes brainGlow{0%,100%{opacity:.72}50%{opacity:1}}
+@keyframes circuitBlink{0%,100%{opacity:.3}50%{opacity:.9}}
+.system-dashboard{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:0 0 12px}
+.system-stat{border:1px solid #13653b;background:linear-gradient(160deg,#092515,#031109);border-radius:10px;padding:11px 3px;text-align:center;min-width:0}
+.system-stat .stat-icon{display:block;color:#00ff83;font-size:20px;margin-bottom:5px}
+.system-stat b{display:block;font-size:9px;letter-spacing:.4px}
+.system-stat small{display:block;color:#8bdbac;font-size:9px;margin-top:5px;overflow-wrap:anywhere}
+@media(max-width:360px){.brain-stage{height:240px}.brain-holo{height:225px}.brain-hud{font-size:8px;padding:4px}.system-stat b{font-size:8px}}
+@media(prefers-reduced-motion:reduce){.brain-holo,.brain-lines,.brain-circuit,.brain-ring{animation:none!important}}
 </style>
 </head>
 <body><main>
 <header class="top"><div><div class="eyebrow">SEMPA // AI SYSTEM</div><h1>COMMAND CENTER</h1></div><div class="online mono">ONLINE</div></header>
-<div class="orb-wrap" id="neuralCore"><div class="orbit"></div><div class="orbit orbit-second"></div><div class="orb" aria-hidden="true"></div><div class="orb-spark" aria-hidden="true"></div></div>
+<div class="orb-wrap brain-stage" id="neuralCore"><div class="brain-ring"></div><div class="brain-ring brain-ring-two"></div><svg class="brain-holo" viewBox="0 0 320 250" role="img" aria-label="Animiertes holografisches KI-Gehirn">
+<defs><filter id="neonGlow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter><linearGradient id="brainLight" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b8ffd3"/><stop offset=".5" stop-color="#00ff86"/><stop offset="1" stop-color="#008f53"/></linearGradient></defs>
+<g class="brain-circuit" stroke="#00ff88" stroke-width=".8" fill="none" opacity=".5"><path d="M10 75H72L95 97M310 74H247L226 95M15 175H80L105 156M305 173H242L217 155M58 25L103 70M263 25L218 70M68 223L109 181M252 223L212 181"/><circle cx="10" cy="75" r="3"/><circle cx="310" cy="74" r="3"/><circle cx="15" cy="175" r="3"/><circle cx="305" cy="173" r="3"/></g>
+<g class="brain-lines" fill="none" stroke="url(#brainLight)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" filter="url(#neonGlow)">
+<path d="M160 45C139 21 107 37 98 56C68 53 53 78 61 99C43 119 51 147 71 156C70 183 94 198 117 190C131 204 153 197 160 185C169 198 191 204 205 190C229 198 252 181 249 157C272 144 275 119 257 99C264 76 246 52 220 56C207 34 180 25 160 45Z"/>
+<path d="M160 45V185M98 56C111 73 99 83 88 91C104 96 114 112 104 127M61 99C83 99 83 120 72 133M71 156C93 144 105 155 105 171M117 190C120 169 143 166 160 185M119 65C140 64 144 84 132 98C151 108 151 127 136 137C149 147 151 165 142 177M95 114C114 105 130 116 126 133M104 151C116 138 130 147 132 160"/>
+<path d="M220 56C209 74 223 84 233 92C216 100 207 112 218 127M257 99C235 99 235 119 249 133M249 157C227 144 215 155 215 171M205 190C200 168 177 166 160 185M201 65C181 64 176 84 188 98C170 108 170 127 185 137C171 147 169 165 179 177M225 114C206 105 191 116 195 133M216 151C203 138 190 147 188 160"/>
+<path d="M160 185L155 211L170 219L164 236M160 203L146 224M169 216L181 226"/>
+</g><g fill="#baffd2" filter="url(#neonGlow)"><circle cx="98" cy="56" r="2.6"/><circle cx="132" cy="98" r="2.6"/><circle cx="104" cy="151" r="2.6"/><circle cx="188" cy="98" r="2.6"/><circle cx="216" cy="151" r="2.6"/><circle cx="160" cy="185" r="3.5"/></g></svg><div class="brain-hud hud-left">ANALYSE<br><span>▂▅▃▇▅</span></div><div class="brain-hud hud-right">SEMPA<br><span>ONLINE</span></div></div>
 <div class="core-label"><strong>NEURAL CORE</strong><div class="status" id="status">● ASSISTANT READY</div></div>
+<div class="system-dashboard" aria-label="Systemstatus"><div class="system-stat"><span class="stat-icon">⌘</span><b>KI</b><small>ONLINE</small></div><div class="system-stat"><span class="stat-icon">♩</span><b>MIKROFON</b><small>BEREIT</small></div><div class="system-stat"><span class="stat-icon">☑</span><b>AUFGABEN</b><small>{{ (heute|length + morgen|length + spaeter|length) }} OFFEN</small></div><div class="system-stat"><span class="stat-icon">◷</span><b>HEUTE</b><small>{{ heute|length }} MISSIONEN</small></div></div>
 <section class="budget-compact" aria-label="API-Budget"><div class="budget-compact-line"><span>◈ API BUDGET <span class="budget-month">{{ budget.month }}</span></span><strong>{{ budget.used }} € <span class="budget-total">/ 2,00 €</span></strong></div><div class="budget-track" role="progressbar" aria-label="Geschätztes Monatsbudget verbraucht" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ budget.percent|round|int }}"><div class="budget-fill"></div></div><div class="budget-foot"><span>GESCHÄTZT · KEIN RECHNUNGSSTAND</span><span>{{ budget.remaining }} € FREI</span></div></section>
 <section class="panel"><div class="label">SYSTEM INPUT_</div><form method="post" id="questionForm"><input class="field" name="frage" placeholder="Was kann ich für dich tun?" aria-label="Frage an KI" required autocomplete="off"><div class="voice-row"><button class="voice-btn" type="button" data-voice="frage" aria-label="Frage per Sprache aufnehmen">🎙 FRAGE SPRECHEN</button></div><div class="voice-note" data-voice-note="frage" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div><button class="primary" type="submit">↗ KI-TERMINAL ÖFFNEN</button></form></section>
 <div class="quick-grid"><button class="tile" type="button" onclick="document.querySelector('[name=frage]').focus()"><span class="tile-icon">●</span><b>KI TERMINAL</b><small>FRAGEN STELLEN</small></button><form method="post"><input type="hidden" name="tagesplan" value="1"><button class="tile" type="submit"><span class="tile-icon">◎</span><b>MISSION PLAN</b><small>TAGESPLAN ERSTELLEN</small></button></form></div>
