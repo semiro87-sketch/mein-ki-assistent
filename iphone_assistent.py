@@ -472,28 +472,50 @@ def lade_aufgaben():
     except FileNotFoundError:
         return []
 
-# SEMPA 2.7: Vorschau ohne KI-Kosten, Speichern erst nach Bestätigung.
+# SEMPA 2.8: Tageszeiten bleiben bewusst ungenau (keine erfundenen Uhrzeiten).
+TAGESZEITEN = {"früh": "morgens", "frueh": "morgens", "morgens": "morgens", "vormittags": "vormittags", "mittags": "mittags", "nachmittags": "nachmittags", "abends": "abends", "nachts": "nachts"}
+TAGESZEIT_RANG = {"morgens": 0, "vormittags": 1, "mittags": 2, "nachmittags": 3, "abends": 4, "nachts": 5}
+
+
+def mission_uhrzeit(text):
+    match = re.search(r"\b(?:um\s+)?([01]?\d|2[0-3])(?::([0-5]\d))?\s*uhr\b|\b([01]?\d|2[0-3]):([0-5]\d)\b", text, re.I)
+    if match:
+        return f"{int(match.group(1) or match.group(3)):02d}:{match.group(2) or match.group(4) or '00'}"
+    match = re.search(r"\b(früh|frueh|morgens|vormittags|mittags|nachmittags|abends|nachts)\b", text, re.I)
+    return TAGESZEITEN[match.group(1).lower()] if match else "ohne"
+
+
+def mission_sort_key(entry):
+    # Gleiche Tageszeit: genaue Uhrzeiten zuerst chronologisch; ohne Zeit zuletzt.
+    _, task = entry
+    zeit = str(task.get("uhrzeit") or "ohne").lower()
+    if re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", zeit):
+        return (0, int(zeit[:2]) * 60 + int(zeit[3:]), 0)
+    if zeit in TAGESZEIT_RANG:
+        # Tageszeiten erhalten eine Position im Tagesablauf, keine erfundene Uhrzeit.
+        ranges = {"morgens": 7, "vormittags": 10, "mittags": 12, "nachmittags": 15, "abends": 19, "nachts": 23}
+        return (0, ranges[zeit] * 60, 1)
+    return (1, 0, 0)
+
+
+# Vorschau ohne KI-Kosten, Speichern erst nach Bestätigung.
 def mission_parts(text):
     raw = re.sub(r"^\s*(?:matrix[, :]*)?(?:ich muss|ich möchte|ich will|bitte|plane|erinnere mich(?: daran)?|morgen muss ich|heute muss ich)\s*", "", text.strip(), flags=re.I)
-    chunks = re.split(r"\s*(?:[,;\n]+|\b(?:und danach|danach|anschließend|und abends|und morgens|und mittags|und dann)\b)\s*", raw, flags=re.I)
-    chunks = [c.strip(" .,-") for c in chunks if c.strip(" .,-")][:10]
+    # Zeitwörter nach 'und' gehören zur folgenden Mission und dürfen nicht verschwinden.
+    raw = re.sub(r"\b(?:und\s+)?(?:danach|anschließend|und dann)\b", ", ", raw, flags=re.I)
+    raw = re.sub(r"\bund\s+(?=(?:morgens|vormittags|mittags|nachmittags|abends|nachts|früh)\b)", ", ", raw, flags=re.I)
+    chunks = [c.strip(" .,-") for c in re.split(r"[,;\n]+", raw) if c.strip(" .,-")][:10]
     if not chunks:
         return []
     day = "morgen" if re.search(r"\bmorgen\b", text, re.I) else "heute" if re.search(r"\bheute\b", text, re.I) else "ohne"
     result = []
     for chunk in chunks:
         due = "morgen" if re.search(r"\bmorgen\b", chunk, re.I) else "heute" if re.search(r"\bheute\b", chunk, re.I) else day
-        match = re.search(r"\b(?:um\s+)?([01]?\d|2[0-3])(?::([0-5]\d))?\s*(?:uhr)\b|\b([01]?\d|2[0-3]):([0-5]\d)\b", chunk, re.I)
-        hour = "ohne"
-        if match:
-            h = match.group(1) or match.group(3)
-            m = match.group(2) or match.group(4) or "00"
-            hour = f"{int(h):02d}:{m}"
         low = chunk.lower()
         priority = "niedrig" if "nicht dringend" in low or "unwichtig" in low else "hoch" if any(w in low for w in ("dringend", "wichtig", "zahnarzt", "arzttermin")) else "normal"
         cleaned = re.sub(r"^\s*(?:und|ich muss|ich möchte|muss ich)\s+", "", chunk, flags=re.I).strip()
         if cleaned:
-            result.append({"text": cleaned[:300], "prioritaet": priority, "faelligkeit": due, "uhrzeit": hour})
+            result.append({"text": cleaned[:300], "prioritaet": priority, "faelligkeit": due, "uhrzeit": mission_uhrzeit(cleaned)})
     return result
 
 
@@ -590,7 +612,7 @@ def startseite():
                 if not isinstance(items, list) or not (1 <= len(items) <= 10):
                     raise BadSignature("Ungültige Aufgaben")
                 for a in items:
-                    if not isinstance(a, dict) or set(a) != {"text", "prioritaet", "faelligkeit", "uhrzeit"} or not isinstance(a["text"], str) or len(a["text"]) > 300 or a["prioritaet"] not in ("hoch", "normal", "niedrig") or a["faelligkeit"] not in ("heute", "morgen", "ohne") or not isinstance(a["uhrzeit"], str) or not re.fullmatch(r"ohne|(?:[01]\d|2[0-3]):[0-5]\d", a["uhrzeit"]):
+                    if not isinstance(a, dict) or set(a) != {"text", "prioritaet", "faelligkeit", "uhrzeit"} or not isinstance(a["text"], str) or len(a["text"]) > 300 or a["prioritaet"] not in ("hoch", "normal", "niedrig") or a["faelligkeit"] not in ("heute", "morgen", "ohne") or not isinstance(a["uhrzeit"], str) or not re.fullmatch(r"ohne|morgens|vormittags|mittags|nachmittags|abends|nachts|(?:[01]\d|2[0-3]):[0-5]\d", a["uhrzeit"]):
                         raise BadSignature("Ungültige Aufgabe")
                 save_missions(items)
                 aufgaben = lade_aufgaben()
@@ -601,9 +623,7 @@ def startseite():
             prioritaet = "normal"
             faelligkeit = "ohne"
             uhrzeit = "ohne"
-            treffer = re.search(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", neue_aufgabe)
-            if treffer:
-                uhrzeit = treffer.group(0)
+            uhrzeit = mission_uhrzeit(neue_aufgabe)
             klein = neue_aufgabe.lower()
             if "heute" in klein:
                 faelligkeit = "heute"
@@ -679,9 +699,9 @@ def startseite():
                     app.logger.exception("KI-Anfrage fehlgeschlagen")
                     antwort = "Die KI ist momentan nicht erreichbar. Bitte später erneut versuchen."
 
-    heute = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "heute"]
-    morgen = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"]
-    spaeter = [(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") not in ("heute", "morgen")]
+    heute = sorted([(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "heute"], key=mission_sort_key)
+    morgen = sorted([(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"], key=mission_sort_key)
+    spaeter = sorted([(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") not in ("heute", "morgen")], key=mission_sort_key)
     try:
         chat_nachrichten = _chat_history()
     except Exception:
@@ -767,7 +787,7 @@ def api_aufgabe_hinzufuegen():
         "text": text,
         "prioritaet": prioritaet,
         "faelligkeit": faelligkeit,
-        "uhrzeit": "ohne"
+        "uhrzeit": mission_uhrzeit(text)
     }
 
     aufgaben.append(neue_aufgabe)
