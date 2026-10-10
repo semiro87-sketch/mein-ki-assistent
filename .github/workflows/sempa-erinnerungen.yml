@@ -1,0 +1,17 @@
+
+name: SEMPA Erinnerungen
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  erinnerungen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Zeitplan prüfen
+        run: echo "SEMPA Erinnerungs-Zeitplan gestartet"
