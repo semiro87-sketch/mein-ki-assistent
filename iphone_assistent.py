@@ -5,6 +5,7 @@ import re
 import io
 import threading
 import secrets
+import hashlib
 from datetime import datetime, timezone
 from decimal import Decimal
 import psycopg
@@ -245,7 +246,7 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 <div class="muted chat-hint">Die letzten 10 Frage-Antwort-Paare · Beim Abmelden gelöscht.</div>
 </section>
 {% if antwort and (not frage_gesendet or not chat_nachrichten or chat_nachrichten[-1][1] != antwort) %}<section class="panel notice" id="result"><h2>▸ SYSTEM RESPONSE</h2>{{ antwort }}</section>{% endif %}
-<div class="section-head"><span>✦ MATRIX SMART PLAN 2.7</span></div>
+<div class="section-head"><span>✦ MATRIX SMART PLAN 2.8.1</span></div>
 <section class="panel"><div class="label">MEHRERE MISSIONEN ERKENNEN_</div>
 <form method="post"><input class="field" name="smart_missions" maxlength="1200" placeholder="Morgen um 9 Uhr Zahnarzt, danach einkaufen und abends Sport" required autocomplete="off">
 <div class="voice-row"><button class="voice-btn" type="button" data-voice="smart_missions">🎙 PLAN SPRECHEN</button></div>
@@ -523,17 +524,48 @@ def mission_token():
     return URLSafeTimedSerializer(app.secret_key, salt="sempa-missions-v27")
 
 
-def save_missions(items):
+def save_missions(items, confirmation_token):
+    """Speichert jede signierte Plan-Bestätigung höchstens einmal.
+
+    Der Schlüssel wird in derselben DB-Transaktion wie die Aufgaben gespeichert.
+    Ein erneuter POST (auch gleichzeitig) erzeugt deshalb keine Duplikate.
+    """
+    token_hash = hashlib.sha256(confirmation_token.encode("utf-8")).hexdigest()
     if os.environ.get("DATABASE_URL"):
         with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
             with conn.cursor() as cur:
+                cur.execute("""CREATE TABLE IF NOT EXISTS sempa_mission_bestaetigungen (
+                    token_hash TEXT PRIMARY KEY,
+                    erstellt_am TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""")
+                cur.execute("""INSERT INTO sempa_mission_bestaetigungen (token_hash)
+                    VALUES (%s) ON CONFLICT DO NOTHING RETURNING token_hash""", (token_hash,))
+                if cur.fetchone() is None:
+                    return False
                 for a in items:
-                    cur.execute("INSERT INTO aufgaben (text, prioritaet, faelligkeit, uhrzeit) VALUES (%s, %s, %s, %s)", (a["text"], a["prioritaet"], a["faelligkeit"], a["uhrzeit"]))
-    else:
+                    cur.execute("""INSERT INTO aufgaben (text, prioritaet, faelligkeit, uhrzeit)
+                        VALUES (%s, %s, %s, %s)""",
+                        (a["text"], a["prioritaet"], a["faelligkeit"], a["uhrzeit"]))
+        return True
+
+    # Lokaler Testbetrieb ohne PostgreSQL: Prozesssperre + gespeicherte Token.
+    with _budget_lock:
+        token_file = "sempa_mission_bestaetigungen.json"
+        try:
+            with open(token_file, encoding="utf-8") as f:
+                processed = json.load(f)
+        except (OSError, ValueError):
+            processed = []
+        if token_hash in processed:
+            return False
         tasks = lade_aufgaben()
         tasks.extend(items)
         with open("aufgaben.json", "w", encoding="utf-8") as f:
             json.dump(tasks, f, ensure_ascii=False, indent=2)
+        processed.append(token_hash)
+        with open(token_file, "w", encoding="utf-8") as f:
+            json.dump(processed, f)
+        return True
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -614,9 +646,10 @@ def startseite():
                 for a in items:
                     if not isinstance(a, dict) or set(a) != {"text", "prioritaet", "faelligkeit", "uhrzeit"} or not isinstance(a["text"], str) or len(a["text"]) > 300 or a["prioritaet"] not in ("hoch", "normal", "niedrig") or a["faelligkeit"] not in ("heute", "morgen", "ohne") or not isinstance(a["uhrzeit"], str) or not re.fullmatch(r"ohne|morgens|vormittags|mittags|nachmittags|abends|nachts|(?:[01]\d|2[0-3]):[0-5]\d", a["uhrzeit"]):
                         raise BadSignature("Ungültige Aufgabe")
-                save_missions(items)
+                neu_gespeichert = save_missions(items, request.form["smart_confirm"])
                 aufgaben = lade_aufgaben()
-                antwort = f"✓ {len(items)} Missionen gespeichert."
+                antwort = (f"✓ {len(items)} Missionen gespeichert." if neu_gespeichert
+                           else "ℹ️ Dieser Plan wurde bereits gespeichert. Keine doppelten Missionen angelegt.")
             except (BadSignature, SignatureExpired, KeyError, TypeError, ValueError):
                 antwort = "Vorschau abgelaufen oder ungültig. Bitte den Plan erneut prüfen."
         elif neue_aufgabe:
