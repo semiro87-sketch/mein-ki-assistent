@@ -6,7 +6,8 @@ import io
 import threading
 import secrets
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 import psycopg
 from flask import Flask, request, render_template_string, session, redirect, jsonify
@@ -257,21 +258,21 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 {% for item in smart_preview %}<article class="task"><div class="task-text">{{ item.text }}</div><div class="muted">{{ item.faelligkeit|upper }} · {{ item.uhrzeit }} · {{ item.prioritaet|upper }}</div></article>{% endfor %}
 <form method="post"><input type="hidden" name="smart_confirm" value="{{ smart_token }}"><button class="primary" type="submit">✓ {{ smart_preview|length }} MISSIONEN SPEICHERN</button></form>
 <p class="muted">Bitte kontrolliere Termine und Aufteilung. Zum Korrigieren den Satz oben neu eingeben.</p></section>{% endif %}
-<div class="section-head"><span>✎ MATRIX MISSION EDITOR 2.9</span></div>
-<section class="panel"><div class="label">GESPEICHERTE MISSION PER TEXT ODER SPRACHE ÄNDERN_</div>
-<form method="post"><input class="field" name="mission_edit_befehl" maxlength="300" placeholder="Matrix, verschiebe meinen Zahnarzttermin auf 11 Uhr" required autocomplete="off">
+<div class="section-head"><span>✎ MATRIX MISSION CONTROL 3.0</span></div>
+<section class="panel"><div class="label">MISSION VERSCHIEBEN ODER SICHER LÖSCHEN_</div>
+<form method="post"><input class="field" name="mission_edit_befehl" maxlength="300" placeholder="Matrix, verschiebe Zahnarzt auf Freitag oder lösche Sport" required autocomplete="off">
 <div class="voice-row"><button class="voice-btn" type="button" data-voice="mission_edit_befehl">🎙 ÄNDERUNG SPRECHEN</button></div>
 <div class="voice-note" data-voice-note="mission_edit_befehl" role="status" aria-live="polite">Erst Vorschau, dann Bestätigung.</div>
 <button class="primary" type="submit">✦ ÄNDERUNG PRÜFEN</button></form></section>
 {% if mission_edit_preview %}<section class="panel edit" id="mission-edit-preview"><div class="label">ÄNDERUNGSVORSCHAU – NOCH NICHT GESPEICHERT_</div>
 <div class="task-text">{{ mission_edit_preview.text }}</div>
-<p class="muted">Bisher: {{ mission_edit_preview.alt_uhrzeit }} → Neu: {{ mission_edit_preview.neu_uhrzeit }}</p>
-<form method="post"><input type="hidden" name="mission_edit_confirm" value="{{ mission_edit_token }}"><button class="primary" type="submit">✓ ÄNDERUNG BESTÄTIGEN</button></form></section>{% endif %}
+<p class="muted">{{ mission_edit_preview.beschreibung }}</p>
+<form method="post"><input type="hidden" name="mission_edit_confirm" value="{{ mission_edit_token }}"><button class="primary" type="submit">✓ {{ "LÖSCHUNG" if mission_edit_preview.aktion == "loeschen" else "ÄNDERUNG" }} BESTÄTIGEN</button></form></section>{% endif %}
 <div class="section-head"><span>▱ ACTIVE MISSIONS</span><span>+ NEU</span></div>
 <section class="panel"><div class="label">NEUE MISSION_</div><form method="post"><input class="field" name="neue_aufgabe" placeholder="z. B. Heute 16:00 einkaufen" required autocomplete="off"><div class="voice-row"><button class="voice-btn" type="button" data-voice="neue_aufgabe" aria-label="Aufgabe per Sprache aufnehmen">🎙 AUFGABE SPRECHEN</button></div><div class="voice-note" data-voice-note="neue_aufgabe" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div><button class="primary" type="submit">+ AUFGABE HINZUFÜGEN</button></form></section>
 {% for titel, liste in [('HEUTE', heute), ('MORGEN', morgen), ('SPÄTER', spaeter)] %}
 <div class="section-head"><span>{{ titel }}</span><span>{{ liste|length }} MISSION{{ 'S' if liste|length != 1 else '' }}</span></div>
-{% for nummer, aufgabe in liste %}<article class="task {{ aufgabe['prioritaet']|e }}"><div class="task-row"><div class="task-text">{{ aufgabe['text'] }}{% if aufgabe.get('uhrzeit') and aufgabe.get('uhrzeit') != 'ohne' %}<div class="muted">◷ {{ aufgabe['uhrzeit'] }}</div>{% endif %}</div><span class="chip">{{ aufgabe['prioritaet']|upper }}</span></div><div class="task-actions"><form method="post"><button class="subbtn" name="bearbeiten" value="{{ nummer }}">✎ BEARBEITEN</button></form><form method="post"><button class="subbtn done" name="erledigt" value="{{ nummer }}">✓ ERLEDIGT</button></form></div></article>{% else %}<p class="muted">Keine Missionen.</p>{% endfor %}{% endfor %}
+{% for nummer, aufgabe in liste %}<article class="task {{ aufgabe['prioritaet']|e }}"><div class="task-row"><div class="task-text">{{ aufgabe['text'] }}{% if aufgabe.get("faelligkeit", "")|length == 10 and "-" in aufgabe.faelligkeit %}<div class="muted">📅 {{ aufgabe.faelligkeit }}</div>{% endif %}{% if aufgabe.get('uhrzeit') and aufgabe.get('uhrzeit') != 'ohne' %}<div class="muted">◷ {{ aufgabe['uhrzeit'] }}</div>{% endif %}</div><span class="chip">{{ aufgabe['prioritaet']|upper }}</span></div><div class="task-actions"><form method="post"><button class="subbtn" name="bearbeiten" value="{{ nummer }}">✎ BEARBEITEN</button></form><form method="post"><button class="subbtn done" name="erledigt" value="{{ nummer }}">✓ ERLEDIGT</button></form></div></article>{% else %}<p class="muted">Keine Missionen.</p>{% endfor %}{% endfor %}
 {% if bearbeiten_aufgabe %}<section class="panel edit" id="edit"><div class="label">MISSION BEARBEITEN_</div><form method="post"><input type="hidden" name="speichern_nummer" value="{{ bearbeiten_aufgabe['nummer'] }}"><input class="field" name="bearbeiten_text" value="{{ bearbeiten_aufgabe['text'] }}" required><button class="primary" type="submit">ÄNDERUNGEN SPEICHERN</button></form></section>{% endif %}
 <div class="footer">SEMPA AI // <a class="logout" href="/logout">ABMELDEN ↗</a></div>
 </main><script>
@@ -528,7 +529,7 @@ def mission_sortieren(aufgaben, faelligkeit):
             gruppen[-1].append(entry)
         else:
             gruppen.append([entry])
-    gruppen.sort(key=lambda gruppe: mission_sort_key(gruppe[0]))
+    gruppen.sort(key=lambda gruppe: ((0, gruppe[0][1]["faelligkeit"]) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(gruppe[0][1].get("faelligkeit"))) else (1, ""), mission_sort_key(gruppe[0])))
     return [entry for gruppe in gruppen for entry in gruppe]
 
 
@@ -554,58 +555,93 @@ def mission_parts(text):
     return result
 
 
-# SEMPA 2.9: sichere, regelbasierte Aenderung vorhandener Missionen.
+# SEMPA 3.0: Vorschau, eindeutige Zuordnung, optimistisches Locking.
+WOCHENTAGE = {"montag": 0, "dienstag": 1, "mittwoch": 2, "donnerstag": 3,
+              "freitag": 4, "samstag": 5, "sonntag": 6}
+
+
 def mission_edit_vorschlag(befehl, aufgaben):
     befehl = re.sub(r"^\s*matrix[,!]?\s*", "", befehl.strip(), flags=re.I)
-    m = re.search(r"\b(?:verschieb(?:e|en)|änder(?:e|n)|aender(?:e|n)|setz(?:e|en))\b", befehl, re.I)
-    zeit = re.search(r"\b(?:auf|nach|um)\s+([01]?\d|2[0-3])(?::([0-5]\d))?\s*(?:uhr)?\b", befehl, re.I)
-    if not m or not zeit:
-        return None, "Bitte formuliere z. B.: Matrix, verschiebe meinen Zahnarzttermin auf 11 Uhr."
-    uhrzeit = f"{int(zeit.group(1)):02d}:{zeit.group(2) or '00'}"
-    suchtext = befehl[m.end():zeit.start()]
+    aktion = re.search(r"\b(?:verschieb(?:e|en)|änder(?:e|n)|aender(?:e|n)|setz(?:e|en)|lösch(?:e|en)|loesch(?:e|en)|entfern(?:e|en))\b", befehl, re.I)
+    if not aktion:
+        return None, "Bitte sage zum Beispiel: Verschiebe Zahnarzt auf Freitag oder lösche Sport."
+    loeschen = bool(re.match(r"(?:lösch|loesch|entfern)", aktion.group(), re.I))
+    zeit = None if loeschen else re.search(r"\b(?:auf|nach|um)\s+([01]?\d|2[0-3])(?::([0-5]\d))?\s*(?:uhr)?\b", befehl, re.I)
+    tag = None if loeschen else re.search(r"\b(?:auf|nach|am)\s+(?:(?:nächsten|naechsten|kommenden)\s+)?(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b", befehl, re.I)
+    if not loeschen and not zeit and not tag:
+        return None, "Bitte nenne eine konkrete Uhrzeit oder einen Wochentag."
+    if loeschen and (zeit or tag):
+        return None, "Bitte Löschen und Verschieben getrennt anfordern."
+    ende = min([m.start() for m in (zeit, tag) if m] or [len(befehl)])
+    suchtext = befehl[aktion.end():ende]
     suchtext = re.sub(r"\b(?:meinen|meine|mein|den|die|das|termin|aufgabe|mission|bitte|von|heute|morgen|um|uhr)\b", " ", suchtext, flags=re.I)
     woerter = re.findall(r"[a-zäöüß]{4,}", suchtext.lower())
     if not woerter:
-        return None, "Welche Mission soll geändert werden? Bitte nenne ihren Namen."
-    # Wortstamm-Abgleich: Zahnarzttermin passt zu Zahnarzt.
+        return None, "Welche Mission ist gemeint? Bitte nenne ihren Namen."
     kandidaten = [a for a in aufgaben if all(any(w.startswith(k[:min(6,len(k))]) or k.startswith(w[:min(6,len(w))]) for w in re.findall(r"[a-zäöüß]+", a['text'].lower())) for k in woerter)]
     if len(kandidaten) != 1:
-        return None, ("Keine passende Mission gefunden." if not kandidaten else f"{len(kandidaten)} Missionen passen. Bitte die gewünschte Mission zuerst eindeutig benennen oder über BEARBEITEN auswählen.")
+        return None, ("Keine passende Mission gefunden." if not kandidaten else f"{len(kandidaten)} Missionen passen. Bitte eindeutiger benennen oder über BEARBEITEN auswählen.")
     alt = kandidaten[0]
-    neuer_text = alt['text']
-    if re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', str(alt.get('uhrzeit') or '')):
-        alte_zeit = alt['uhrzeit']
-        muster = r'(?<!\d)' + re.escape(alte_zeit) + r'(?!\d)'
-        neuer_text = re.sub(muster, uhrzeit, neuer_text, count=1)
-        stunde, minute = alte_zeit.split(':')
-        if neuer_text == alt['text']:
-            muster = r'\b' + str(int(stunde)) + (r'(?::' + minute + r')?' if minute == '00' else ':' + minute) + r'\s*Uhr\b'
-            neuer_text = re.sub(muster, uhrzeit + ' Uhr', neuer_text, count=1, flags=re.I)
-    return {"neu_text": neuer_text, "id": alt.get("id"), "text": alt['text'], "alt_uhrzeit": alt.get('uhrzeit') or 'ohne', "neu_uhrzeit": uhrzeit, "faelligkeit": alt.get('faelligkeit'), "prioritaet": alt.get('prioritaet')}, None
+    neu_zeit = str(alt.get('uhrzeit') or 'ohne')
+    neu_tag = str(alt.get('faelligkeit') or 'ohne')
+    neu_text = alt['text']
+    if zeit:
+        neu_zeit = f"{int(zeit.group(1)):02d}:{zeit.group(2) or '00'}"
+        alt_zeit = str(alt.get('uhrzeit') or 'ohne')
+        if re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', alt_zeit):
+            neu_text = re.sub(r'(?<!\d)' + re.escape(alt_zeit) + r'(?!\d)', neu_zeit, neu_text, count=1)
+            if neu_text == alt['text']:
+                stunde, minute = alt_zeit.split(':')
+                muster = r'\b' + str(int(stunde)) + (r'(?::' + minute + r')?' if minute == '00' else ':' + minute) + r'\s*Uhr\b'
+                neu_text = re.sub(muster, neu_zeit + ' Uhr', neu_text, count=1, flags=re.I)
+    if zeit and neu_text == alt['text']:
+        # Ein alter Uhrzeittext kann vom gespeicherten Zeitfeld abweichen.
+        # Genau eine explizite Zeitangabe im Aufgabentext angleichen.
+        neu_text = re.sub(r'\b(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*Uhr\b', neu_zeit + ' Uhr', neu_text, count=1, flags=re.I)
+    if tag:
+        heute = datetime.now(ZoneInfo('Europe/Berlin')).date()
+        ziel = WOCHENTAGE[tag.group(1).lower()]
+        abstand = (ziel - heute.weekday()) % 7
+        if abstand == 0:
+            abstand = 7  # 'auf Freitag' = nächster bevorstehender Freitag
+        datum = heute + timedelta(days=abstand)
+        neu_tag = datum.isoformat()
+        neu_text = re.sub(r'\b(?:heute|morgen)\b', tag.group(1).capitalize(), neu_text, count=1, flags=re.I)
+    beschreibung = ("LÖSCHEN: " + alt['text'] if loeschen else
+                    f"Bisher: {alt.get('faelligkeit', 'ohne')} · {alt.get('uhrzeit') or 'ohne'} → Neu: {neu_tag} · {neu_zeit}")
+    return {'aktion': 'loeschen' if loeschen else 'aendern', 'id': alt.get('id'),
+            'text': alt['text'], 'neu_text': neu_text, 'alt_uhrzeit': alt.get('uhrzeit') or 'ohne',
+            'neu_uhrzeit': neu_zeit, 'faelligkeit': alt.get('faelligkeit'),
+            'neu_faelligkeit': neu_tag, 'prioritaet': alt.get('prioritaet'),
+            'beschreibung': beschreibung}, None
 
 
-def mission_edit_speichern(vorschlag):
-    if os.environ.get("DATABASE_URL"):
-        if vorschlag.get('id') is None:
+def mission_edit_speichern(v):
+    if os.environ.get('DATABASE_URL'):
+        if v.get('id') is None:
             return False
         with psycopg.connect(os.environ['DATABASE_URL']) as conn:
             with conn.cursor() as cur:
-                cur.execute("""UPDATE aufgaben SET uhrzeit = %s, text = %s
-                    WHERE id = %s AND text = %s AND COALESCE(uhrzeit, 'ohne') = %s
-                    AND faelligkeit = %s AND prioritaet = %s RETURNING id""",
-                    (vorschlag['neu_uhrzeit'], vorschlag['neu_text'], vorschlag['id'], vorschlag['text'],
-                     vorschlag['alt_uhrzeit'], vorschlag['faelligkeit'], vorschlag['prioritaet']))
+                bedingung = "WHERE id = %s AND text = %s AND COALESCE(uhrzeit, 'ohne') = %s AND faelligkeit = %s AND prioritaet = %s RETURNING id"
+                alt = (v['id'], v['text'], v['alt_uhrzeit'], v['faelligkeit'], v['prioritaet'])
+                if v['aktion'] == 'loeschen':
+                    cur.execute('DELETE FROM aufgaben ' + bedingung, alt)
+                else:
+                    cur.execute('UPDATE aufgaben SET uhrzeit = %s, text = %s, faelligkeit = %s ' + bedingung,
+                                (v['neu_uhrzeit'], v['neu_text'], v['neu_faelligkeit']) + alt)
                 return cur.fetchone() is not None
     with _budget_lock:
         aufgaben = lade_aufgaben()
-        matches = [a for a in aufgaben if a['text'] == vorschlag['text'] and
-                   (a.get('uhrzeit') or 'ohne') == vorschlag['alt_uhrzeit'] and
-                   a.get('faelligkeit') == vorschlag['faelligkeit'] and
-                   a.get('prioritaet') == vorschlag['prioritaet']]
+        matches = [a for a in aufgaben if a['text'] == v['text'] and
+                   (a.get('uhrzeit') or 'ohne') == v['alt_uhrzeit'] and
+                   a.get('faelligkeit') == v['faelligkeit'] and
+                   a.get('prioritaet') == v['prioritaet'] and a.get('id') == v['id']]
         if len(matches) != 1:
             return False
-        matches[0]['uhrzeit'] = vorschlag['neu_uhrzeit']
-        matches[0]['text'] = vorschlag['neu_text']
+        if v['aktion'] == 'loeschen':
+            aufgaben.remove(matches[0])
+        else:
+            matches[0].update(text=v['neu_text'], uhrzeit=v['neu_uhrzeit'], faelligkeit=v['neu_faelligkeit'])
         with open('aufgaben.json', 'w', encoding='utf-8') as f:
             json.dump(aufgaben, f, ensure_ascii=False, indent=2)
         return True
@@ -724,22 +760,22 @@ def startseite():
         if request.form.get("mission_edit_befehl", "").strip():
             mission_edit_preview, fehler = mission_edit_vorschlag(request.form['mission_edit_befehl'][:300], aufgaben)
             if mission_edit_preview:
-                mission_edit_token = URLSafeTimedSerializer(app.secret_key, salt='sempa-edit-v29').dumps(
+                mission_edit_token = URLSafeTimedSerializer(app.secret_key, salt='sempa-edit-v30').dumps(
                     {'edit': mission_edit_preview, 'chat': _chat_id()})
                 antwort = 'Bitte die Änderung prüfen und ausdrücklich bestätigen.'
             else:
                 antwort = fehler
         elif request.form.get('mission_edit_confirm'):
             try:
-                data = URLSafeTimedSerializer(app.secret_key, salt='sempa-edit-v29').loads(
+                data = URLSafeTimedSerializer(app.secret_key, salt='sempa-edit-v30').loads(
                     request.form['mission_edit_confirm'], max_age=900)
                 v = data['edit']
-                if data.get('chat') != _chat_id() or not isinstance(v, dict) or set(v) != {'id','text','neu_text','alt_uhrzeit','neu_uhrzeit','faelligkeit','prioritaet'} or not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', str(v['neu_uhrzeit'])):
+                if data.get('chat') != _chat_id() or not isinstance(v, dict) or set(v) != {'aktion','id','text','neu_text','alt_uhrzeit','neu_uhrzeit','faelligkeit','neu_faelligkeit','prioritaet','beschreibung'} or v['aktion'] not in ('aendern','loeschen') or not re.fullmatch(r'ohne|morgens|vormittags|mittags|nachmittags|abends|nachts|(?:[01]\d|2[0-3]):[0-5]\d', str(v['neu_uhrzeit'])) or not re.fullmatch(r'heute|morgen|ohne|\d{4}-\d{2}-\d{2}', str(v['neu_faelligkeit'])):
                     raise BadSignature('Ungueltige Aenderung')
                 if mission_edit_speichern(v):
-                    antwort = '✓ Mission aktualisiert: ' + v['neu_uhrzeit']
+                    antwort = ('✓ Mission sicher gelöscht.' if v['aktion'] == 'loeschen' else '✓ Mission aktualisiert: ' + v['neu_faelligkeit'] + ' · ' + v['neu_uhrzeit'])
                 else:
-                    antwort = 'ℹ️ Mission wurde bereits geändert oder ist nicht mehr eindeutig. Bitte erneut prüfen.'
+                    antwort = 'ℹ️ Mission wurde bereits geändert oder gelöscht. Bitte erneut prüfen.'
                 aufgaben = lade_aufgaben()
             except (BadSignature, SignatureExpired, KeyError, TypeError, ValueError):
                 antwort = 'Änderungsvorschau abgelaufen oder ungültig. Bitte erneut prüfen.'
