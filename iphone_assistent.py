@@ -876,12 +876,28 @@ def startseite():
         else:
             frage = request.form.get("frage", "").strip()
             if frage:
-                frage_gesendet = True
-                try:
-                    antwort = answer_with_memory(frage)
-                except Exception:
-                    app.logger.exception("KI-Anfrage fehlgeschlagen")
-                    antwort = "Die KI ist momentan nicht erreichbar. Bitte später erneut versuchen."
+                # SEMPA 3.0.1: Missionsbefehle aus dem normalen Matrix-Chat
+                # zuerst an den sicheren Editor leiten (niemals direkt löschen).
+                ist_missionsbefehl = bool(re.search(
+                    r"\b(?:verschieb(?:e|en)|änder(?:e|n)|aender(?:e|n)|"
+                    r"setz(?:e|en)|lösch(?:e|en)|loesch(?:e|en)|entfern(?:e|en))\b",
+                    frage, re.I))
+                if ist_missionsbefehl:
+                    mission_edit_preview, fehler = mission_edit_vorschlag(frage[:300], aufgaben)
+                    if mission_edit_preview:
+                        mission_edit_token = URLSafeTimedSerializer(
+                            app.secret_key, salt='sempa-edit-v30').dumps(
+                                {'edit': mission_edit_preview, 'chat': _chat_id()})
+                        antwort = 'Bitte die Mission in der Vorschau prüfen und ausdrücklich bestätigen.'
+                    else:
+                        antwort = fehler
+                else:
+                    frage_gesendet = True
+                    try:
+                        antwort = answer_with_memory(frage)
+                    except Exception:
+                        app.logger.exception("KI-Anfrage fehlgeschlagen")
+                        antwort = "Die KI ist momentan nicht erreichbar. Bitte später erneut versuchen."
 
     heute = mission_sortieren(aufgaben, "heute")
     morgen = mission_sortieren(aufgaben, "morgen")
