@@ -246,7 +246,7 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 <div class="muted chat-hint">Die letzten 10 Frage-Antwort-Paare · Beim Abmelden gelöscht.</div>
 </section>
 {% if antwort and (not frage_gesendet or not chat_nachrichten or chat_nachrichten[-1][1] != antwort) %}<section class="panel notice" id="result"><h2>▸ SYSTEM RESPONSE</h2>{{ antwort }}</section>{% endif %}
-<div class="section-head"><span>✦ MATRIX SMART PLAN 2.8.2</span></div>
+<div class="section-head"><span>✦ MATRIX SMART PLAN 2.9</span></div>
 <section class="panel"><div class="label">MEHRERE MISSIONEN ERKENNEN_</div>
 <form method="post"><input class="field" name="smart_missions" maxlength="1200" placeholder="Morgen um 9 Uhr Zahnarzt, danach einkaufen und abends Sport" required autocomplete="off">
 <div class="voice-row"><button class="voice-btn" type="button" data-voice="smart_missions">🎙 PLAN SPRECHEN</button></div>
@@ -257,6 +257,16 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 {% for item in smart_preview %}<article class="task"><div class="task-text">{{ item.text }}</div><div class="muted">{{ item.faelligkeit|upper }} · {{ item.uhrzeit }} · {{ item.prioritaet|upper }}</div></article>{% endfor %}
 <form method="post"><input type="hidden" name="smart_confirm" value="{{ smart_token }}"><button class="primary" type="submit">✓ {{ smart_preview|length }} MISSIONEN SPEICHERN</button></form>
 <p class="muted">Bitte kontrolliere Termine und Aufteilung. Zum Korrigieren den Satz oben neu eingeben.</p></section>{% endif %}
+<div class="section-head"><span>✎ MATRIX MISSION EDITOR 2.9</span></div>
+<section class="panel"><div class="label">GESPEICHERTE MISSION PER TEXT ODER SPRACHE ÄNDERN_</div>
+<form method="post"><input class="field" name="mission_edit_befehl" maxlength="300" placeholder="Matrix, verschiebe meinen Zahnarzttermin auf 11 Uhr" required autocomplete="off">
+<div class="voice-row"><button class="voice-btn" type="button" data-voice="mission_edit_befehl">🎙 ÄNDERUNG SPRECHEN</button></div>
+<div class="voice-note" data-voice-note="mission_edit_befehl" role="status" aria-live="polite">Erst Vorschau, dann Bestätigung.</div>
+<button class="primary" type="submit">✦ ÄNDERUNG PRÜFEN</button></form></section>
+{% if mission_edit_preview %}<section class="panel edit" id="mission-edit-preview"><div class="label">ÄNDERUNGSVORSCHAU – NOCH NICHT GESPEICHERT_</div>
+<div class="task-text">{{ mission_edit_preview.text }}</div>
+<p class="muted">Bisher: {{ mission_edit_preview.alt_uhrzeit }} → Neu: {{ mission_edit_preview.neu_uhrzeit }}</p>
+<form method="post"><input type="hidden" name="mission_edit_confirm" value="{{ mission_edit_token }}"><button class="primary" type="submit">✓ ÄNDERUNG BESTÄTIGEN</button></form></section>{% endif %}
 <div class="section-head"><span>▱ ACTIVE MISSIONS</span><span>+ NEU</span></div>
 <section class="panel"><div class="label">NEUE MISSION_</div><form method="post"><input class="field" name="neue_aufgabe" placeholder="z. B. Heute 16:00 einkaufen" required autocomplete="off"><div class="voice-row"><button class="voice-btn" type="button" data-voice="neue_aufgabe" aria-label="Aufgabe per Sprache aufnehmen">🎙 AUFGABE SPRECHEN</button></div><div class="voice-note" data-voice-note="neue_aufgabe" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div><button class="primary" type="submit">+ AUFGABE HINZUFÜGEN</button></form></section>
 {% for titel, liste in [('HEUTE', heute), ('MORGEN', morgen), ('SPÄTER', spaeter)] %}
@@ -544,6 +554,63 @@ def mission_parts(text):
     return result
 
 
+# SEMPA 2.9: sichere, regelbasierte Aenderung vorhandener Missionen.
+def mission_edit_vorschlag(befehl, aufgaben):
+    befehl = re.sub(r"^\s*matrix[,!]?\s*", "", befehl.strip(), flags=re.I)
+    m = re.search(r"\b(?:verschieb(?:e|en)|änder(?:e|n)|aender(?:e|n)|setz(?:e|en))\b", befehl, re.I)
+    zeit = re.search(r"\b(?:auf|nach|um)\s+([01]?\d|2[0-3])(?::([0-5]\d))?\s*(?:uhr)?\b", befehl, re.I)
+    if not m or not zeit:
+        return None, "Bitte formuliere z. B.: Matrix, verschiebe meinen Zahnarzttermin auf 11 Uhr."
+    uhrzeit = f"{int(zeit.group(1)):02d}:{zeit.group(2) or '00'}"
+    suchtext = befehl[m.end():zeit.start()]
+    suchtext = re.sub(r"\b(?:meinen|meine|mein|den|die|das|termin|aufgabe|mission|bitte|von|heute|morgen|um|uhr)\b", " ", suchtext, flags=re.I)
+    woerter = re.findall(r"[a-zäöüß]{4,}", suchtext.lower())
+    if not woerter:
+        return None, "Welche Mission soll geändert werden? Bitte nenne ihren Namen."
+    # Wortstamm-Abgleich: Zahnarzttermin passt zu Zahnarzt.
+    kandidaten = [a for a in aufgaben if all(any(w.startswith(k[:min(6,len(k))]) or k.startswith(w[:min(6,len(w))]) for w in re.findall(r"[a-zäöüß]+", a['text'].lower())) for k in woerter)]
+    if len(kandidaten) != 1:
+        return None, ("Keine passende Mission gefunden." if not kandidaten else f"{len(kandidaten)} Missionen passen. Bitte die gewünschte Mission zuerst eindeutig benennen oder über BEARBEITEN auswählen.")
+    alt = kandidaten[0]
+    neuer_text = alt['text']
+    if re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', str(alt.get('uhrzeit') or '')):
+        alte_zeit = alt['uhrzeit']
+        muster = r'(?<!\d)' + re.escape(alte_zeit) + r'(?!\d)'
+        neuer_text = re.sub(muster, uhrzeit, neuer_text, count=1)
+        stunde, minute = alte_zeit.split(':')
+        if neuer_text == alt['text']:
+            muster = r'\b' + str(int(stunde)) + (r'(?::' + minute + r')?' if minute == '00' else ':' + minute) + r'\s*Uhr\b'
+            neuer_text = re.sub(muster, uhrzeit + ' Uhr', neuer_text, count=1, flags=re.I)
+    return {"neu_text": neuer_text, "id": alt.get("id"), "text": alt['text'], "alt_uhrzeit": alt.get('uhrzeit') or 'ohne', "neu_uhrzeit": uhrzeit, "faelligkeit": alt.get('faelligkeit'), "prioritaet": alt.get('prioritaet')}, None
+
+
+def mission_edit_speichern(vorschlag):
+    if os.environ.get("DATABASE_URL"):
+        if vorschlag.get('id') is None:
+            return False
+        with psycopg.connect(os.environ['DATABASE_URL']) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE aufgaben SET uhrzeit = %s, text = %s
+                    WHERE id = %s AND text = %s AND COALESCE(uhrzeit, 'ohne') = %s
+                    AND faelligkeit = %s AND prioritaet = %s RETURNING id""",
+                    (vorschlag['neu_uhrzeit'], vorschlag['neu_text'], vorschlag['id'], vorschlag['text'],
+                     vorschlag['alt_uhrzeit'], vorschlag['faelligkeit'], vorschlag['prioritaet']))
+                return cur.fetchone() is not None
+    with _budget_lock:
+        aufgaben = lade_aufgaben()
+        matches = [a for a in aufgaben if a['text'] == vorschlag['text'] and
+                   (a.get('uhrzeit') or 'ohne') == vorschlag['alt_uhrzeit'] and
+                   a.get('faelligkeit') == vorschlag['faelligkeit'] and
+                   a.get('prioritaet') == vorschlag['prioritaet']]
+        if len(matches) != 1:
+            return False
+        matches[0]['uhrzeit'] = vorschlag['neu_uhrzeit']
+        matches[0]['text'] = vorschlag['neu_text']
+        with open('aufgaben.json', 'w', encoding='utf-8') as f:
+            json.dump(aufgaben, f, ensure_ascii=False, indent=2)
+        return True
+
+
 def mission_token():
     return URLSafeTimedSerializer(app.secret_key, salt="sempa-missions-v27")
 
@@ -645,6 +712,8 @@ def startseite():
     bearbeiten_aufgabe = None
     smart_preview = []
     smart_token = ""
+    mission_edit_preview = None
+    mission_edit_token = ""
 
     if request.method == "POST":
         neue_aufgabe = request.form.get("neue_aufgabe", "").strip()
@@ -652,7 +721,29 @@ def startseite():
         bearbeiten = request.form.get("bearbeiten")
         erledigt = request.form.get("erledigt")
 
-        if request.form.get("smart_missions", "").strip():
+        if request.form.get("mission_edit_befehl", "").strip():
+            mission_edit_preview, fehler = mission_edit_vorschlag(request.form['mission_edit_befehl'][:300], aufgaben)
+            if mission_edit_preview:
+                mission_edit_token = URLSafeTimedSerializer(app.secret_key, salt='sempa-edit-v29').dumps(
+                    {'edit': mission_edit_preview, 'chat': _chat_id()})
+                antwort = 'Bitte die Änderung prüfen und ausdrücklich bestätigen.'
+            else:
+                antwort = fehler
+        elif request.form.get('mission_edit_confirm'):
+            try:
+                data = URLSafeTimedSerializer(app.secret_key, salt='sempa-edit-v29').loads(
+                    request.form['mission_edit_confirm'], max_age=900)
+                v = data['edit']
+                if data.get('chat') != _chat_id() or not isinstance(v, dict) or set(v) != {'id','text','neu_text','alt_uhrzeit','neu_uhrzeit','faelligkeit','prioritaet'} or not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', str(v['neu_uhrzeit'])):
+                    raise BadSignature('Ungueltige Aenderung')
+                if mission_edit_speichern(v):
+                    antwort = '✓ Mission aktualisiert: ' + v['neu_uhrzeit']
+                else:
+                    antwort = 'ℹ️ Mission wurde bereits geändert oder ist nicht mehr eindeutig. Bitte erneut prüfen.'
+                aufgaben = lade_aufgaben()
+            except (BadSignature, SignatureExpired, KeyError, TypeError, ValueError):
+                antwort = 'Änderungsvorschau abgelaufen oder ungültig. Bitte erneut prüfen.'
+        elif request.form.get("smart_missions", "").strip():
             smart_preview = mission_parts(request.form["smart_missions"][:1200])
             if smart_preview:
                 smart_token = mission_token().dumps({"items": smart_preview, "chat": _chat_id()})
@@ -764,7 +855,7 @@ def startseite():
     except Exception:
         app.logger.exception("Chatverlauf konnte nicht geladen werden")
         chat_nachrichten = []
-    return render_template_string(HTML, antwort=antwort, frage_gesendet=frage_gesendet, chat_nachrichten=chat_nachrichten, heute=heute, morgen=morgen, spaeter=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe, budget=budget_display(), smart_preview=smart_preview, smart_token=smart_token)
+    return render_template_string(HTML, antwort=antwort, frage_gesendet=frage_gesendet, chat_nachrichten=chat_nachrichten, heute=heute, morgen=morgen, spaeter=spaeter, bearbeiten_aufgabe=bearbeiten_aufgabe, budget=budget_display(), smart_preview=smart_preview, smart_token=smart_token, mission_edit_preview=mission_edit_preview, mission_edit_token=mission_edit_token)
 
 
 @app.route("/api/transkribieren", methods=["POST"])
