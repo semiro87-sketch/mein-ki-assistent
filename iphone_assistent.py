@@ -246,7 +246,7 @@ main{position:relative;max-width:650px;margin:auto;padding:calc(22px + env(safe-
 <div class="muted chat-hint">Die letzten 10 Frage-Antwort-Paare · Beim Abmelden gelöscht.</div>
 </section>
 {% if antwort and (not frage_gesendet or not chat_nachrichten or chat_nachrichten[-1][1] != antwort) %}<section class="panel notice" id="result"><h2>▸ SYSTEM RESPONSE</h2>{{ antwort }}</section>{% endif %}
-<div class="section-head"><span>✦ MATRIX SMART PLAN 2.8.1</span></div>
+<div class="section-head"><span>✦ MATRIX SMART PLAN 2.8.2</span></div>
 <section class="panel"><div class="label">MEHRERE MISSIONEN ERKENNEN_</div>
 <form method="post"><input class="field" name="smart_missions" maxlength="1200" placeholder="Morgen um 9 Uhr Zahnarzt, danach einkaufen und abends Sport" required autocomplete="off">
 <div class="voice-row"><button class="voice-btn" type="button" data-voice="smart_missions">🎙 PLAN SPRECHEN</button></div>
@@ -499,11 +499,34 @@ def mission_sort_key(entry):
     return (1, 0, 0)
 
 
+
+def mission_sortieren(aufgaben, faelligkeit):
+    """Sortiert feste Zeiten und Tageszeiten; 'danach' bleibt beim Vorgänger.
+
+    Die Reihenfolge der Datenbankeinträge (ID) verbindet eine Folgemission
+    mit der unmittelbar zuvor angelegten Mission desselben Tages.
+    Bestehende Aufgaben ohne 'danach' behalten die bisherige Sortierlogik.
+    """
+    eintraege = [(i, a) for i, a in enumerate(aufgaben)
+                 if (a.get("faelligkeit") == faelligkeit if faelligkeit != "spaeter"
+                     else a.get("faelligkeit") not in ("heute", "morgen"))]
+    gruppen = []
+    for entry in eintraege:
+        text = str(entry[1].get("text") or "")
+        ist_folge = bool(re.match(r"^\s*(?:danach|anschließend)\b", text, re.I))
+        if ist_folge and gruppen:
+            gruppen[-1].append(entry)
+        else:
+            gruppen.append([entry])
+    gruppen.sort(key=lambda gruppe: mission_sort_key(gruppe[0]))
+    return [entry for gruppe in gruppen for entry in gruppe]
+
+
 # Vorschau ohne KI-Kosten, Speichern erst nach Bestätigung.
 def mission_parts(text):
     raw = re.sub(r"^\s*(?:matrix[, :]*)?(?:ich muss|ich möchte|ich will|bitte|plane|erinnere mich(?: daran)?|morgen muss ich|heute muss ich)\s*", "", text.strip(), flags=re.I)
     # Zeitwörter nach 'und' gehören zur folgenden Mission und dürfen nicht verschwinden.
-    raw = re.sub(r"\b(?:und\s+)?(?:danach|anschließend|und dann)\b", ", ", raw, flags=re.I)
+    raw = re.sub(r"\b(?:und\s+)?(?:danach|anschließend|und dann)\b", ", danach ", raw, flags=re.I)
     raw = re.sub(r"\bund\s+(?=(?:morgens|vormittags|mittags|nachmittags|abends|nachts|früh)\b)", ", ", raw, flags=re.I)
     chunks = [c.strip(" .,-") for c in re.split(r"[,;\n]+", raw) if c.strip(" .,-")][:10]
     if not chunks:
@@ -515,6 +538,7 @@ def mission_parts(text):
         low = chunk.lower()
         priority = "niedrig" if "nicht dringend" in low or "unwichtig" in low else "hoch" if any(w in low for w in ("dringend", "wichtig", "zahnarzt", "arzttermin")) else "normal"
         cleaned = re.sub(r"^\s*(?:und|ich muss|ich möchte|muss ich)\s+", "", chunk, flags=re.I).strip()
+        cleaned = re.sub(r"\s+", " ", cleaned)
         if cleaned:
             result.append({"text": cleaned[:300], "prioritaet": priority, "faelligkeit": due, "uhrzeit": mission_uhrzeit(cleaned)})
     return result
@@ -732,9 +756,9 @@ def startseite():
                     app.logger.exception("KI-Anfrage fehlgeschlagen")
                     antwort = "Die KI ist momentan nicht erreichbar. Bitte später erneut versuchen."
 
-    heute = sorted([(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "heute"], key=mission_sort_key)
-    morgen = sorted([(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") == "morgen"], key=mission_sort_key)
-    spaeter = sorted([(i, a) for i, a in enumerate(aufgaben) if a.get("faelligkeit") not in ("heute", "morgen")], key=mission_sort_key)
+    heute = mission_sortieren(aufgaben, "heute")
+    morgen = mission_sortieren(aufgaben, "morgen")
+    spaeter = mission_sortieren(aufgaben, "spaeter")
     try:
         chat_nachrichten = _chat_history()
     except Exception:
