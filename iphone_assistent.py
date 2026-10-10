@@ -72,7 +72,7 @@ def paid_text(instructions, content):
     if not change_budget(TEXT_RESERVE_EUR, require_space=True):
         return "⛔ Monatsbudget erreicht. Neue KI-Anfragen sind bis zum nächsten Monat gesperrt."
     try:
-        result = client.responses.create(model="gpt-5", instructions=instructions, input=content[:6000], max_output_tokens=800)
+        result = client.responses.create(model="gpt-5", instructions=instructions, input=content[:6000], max_output_tokens=2200)
         # Aufrunden mit Sicherheitsaufschlag (USD-Preise grob in EUR bewertet).
         usage = result.usage
         input_tokens = getattr(usage, "input_tokens", 0) or 0
@@ -80,7 +80,13 @@ def paid_text(instructions, content):
         estimated = Decimal(str(input_tokens)) * Decimal("0.000002") + Decimal(str(output_tokens)) * Decimal("0.000015")
         estimated = min(TEXT_RESERVE_EUR, max(Decimal("0.001"), estimated))
         change_budget(estimated - TEXT_RESERVE_EUR)
-        return result.output_text
+        antwort_text = (result.output_text or "").strip()
+        if not antwort_text:
+            status = getattr(result, "status", "unbekannt")
+            details = getattr(getattr(result, "incomplete_details", None), "reason", None)
+            app.logger.warning("Matrix: leere KI-Antwort; status=%s, grund=%s, output_tokens=%s", status, details, output_tokens)
+            return "⚠️ Matrix konnte diesmal keinen Antworttext erzeugen. Bitte versuche es erneut oder stelle die Frage etwas kürzer."
+        return antwort_text
     except Exception:
         change_budget(-TEXT_RESERVE_EUR)
         raise
@@ -425,7 +431,7 @@ def answer_with_memory(frage):
         content += ("Nutzer" if rolle == "user" else "Matrix") + ": " + inhalt[:900] + "\n"
     content += "Nutzer: " + frage[:1800] + "\nMatrix:"
     antwort = paid_text(instructions, content)
-    if not antwort.startswith("⛔ Monatsbudget erreicht"):
+    if not antwort.startswith(("⛔ Monatsbudget erreicht", "⚠️ Matrix konnte")):
         _chat_append(frage, antwort)
     return antwort
 
