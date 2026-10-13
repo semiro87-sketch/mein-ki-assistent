@@ -1236,12 +1236,11 @@ def sempa_cron_erinnerungen():
                 hour, minute = map(int, clock.split(":"))
                 if hour > 23 or (day == now.date() and (hour, minute) > (now.hour, now.minute)):
                     continue
-                # Vor dem Versand markieren: verhindert doppelte Meldungen auch bei Wiederholung.
+                # Reservierung innerhalb der Transaktion; bei komplettem Fehlschlag wieder freigeben.
                 cur.execute("""INSERT INTO sempa_push_dispatch (aufgabe_id)
                     VALUES (%s) ON CONFLICT DO NOTHING RETURNING aufgabe_id""", (task_id,))
                 if cur.fetchone() is None:
                     continue
-                conn.commit()
                 attempts += 1
                 success = 0
                 for endpoint, p256dh, auth in subs:
@@ -1259,13 +1258,15 @@ def sempa_cron_erinnerungen():
                         status = getattr(getattr(exc, "response", None), "status_code", None)
                         if status in (404, 410):
                             cur.execute("DELETE FROM sempa_push_subscriptions WHERE endpoint=%s", (endpoint,))
-                            conn.commit()
                         else:
                             app.logger.warning("Push-Versand fehlgeschlagen: HTTP %s", status)
                     except Exception:
                         app.logger.exception("Push-Versand fehlgeschlagen")
-                cur.execute("UPDATE sempa_push_dispatch SET erfolgreich=%s WHERE aufgabe_id=%s", (success, task_id))
-                conn.commit()
+                if success:
+                    cur.execute("UPDATE sempa_push_dispatch SET erfolgreich=%s WHERE aufgabe_id=%s", (success, task_id))
+                else:
+                    # Kein erfolgreicher Versand: bei einem späteren Cron-Lauf erneut versuchen.
+                    cur.execute("DELETE FROM sempa_push_dispatch WHERE aufgabe_id=%s", (task_id,))
     return jsonify({"status": "ok", "erinnerungen_bearbeitet": attempts, "push_versendet": sent})
 
 
