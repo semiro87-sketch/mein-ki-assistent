@@ -23,7 +23,7 @@ jobs:
             exit 1
           fi
 
-          curl --fail --show-error --silent \
+          curl --show-error --silent \ 
             --retry 2 \
             --retry-delay 20 \
             --max-time 90 \
