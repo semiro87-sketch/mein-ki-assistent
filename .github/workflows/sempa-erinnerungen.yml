@@ -9,8 +9,8 @@ jobs:
     steps:
       - name: Erinnerungen auslösen
         env:
-          SEMPA_URL: ${{ secrets.SEMPA_URL }}
-          SEMPA_CRON_SECRET: ${{ secrets.SEMPA_CRON_SECRET }}
+          SEMPAURL: ${{ secrets.SEMPA_TEST_URL }}
+          SEMPA_CRON_SECRET: ${{ secrets.SEMPA_TEST_CRON_SECRET }}
         run: |
           test -n "$SEMPA_URL" || { echo 'SEMPA_URL Secret fehlt'; exit 1; }
           test -n "$SEMPA_CRON_SECRET" || { echo 'SEMPA_CRON_SECRET fehlt'; exit 1; }
