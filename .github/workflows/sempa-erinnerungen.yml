@@ -1,19 +1,31 @@
-name: SEMPA Erinnerungen
+
+name: SEMPA Erinnerungen Test
+
 on:
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch:
+
 jobs:
   erinnern:
     runs-on: ubuntu-latest
     steps:
       - name: Erinnerungen auslösen
         env:
-          SEMPAURL: ${{ secrets.SEMPA_TEST_URL }}
+          SEMPA_URL: ${{ secrets.SEMPA_TEST_URL }}
           SEMPA_CRON_SECRET: ${{ secrets.SEMPA_TEST_CRON_SECRET }}
         run: |
-          test -n "$SEMPA_URL" || { echo 'SEMPA_URL Secret fehlt'; exit 1; }
-          test -n "$SEMPA_CRON_SECRET" || { echo 'SEMPA_CRON_SECRET fehlt'; exit 1; }
-          curl --fail --show-error --silent --retry 2 --retry-delay 20 --max-time 90 \
+          if [ -z "$SEMPA_URL" ]; then
+            echo "SEMPA_TEST_URL fehlt"
+            exit 1
+          fi
+
+          if [ -z "$SEMPA_CRON_SECRET" ]; then
+            echo "SEMPA_TEST_CRON_SECRET fehlt"
+            exit 1
+          fi
+
+          curl --fail --show-error --silent \
+            --retry 2 \
+            --retry-delay 20 \
+            --max-time 90 \
             -X POST "${SEMPA_URL%/}/api/cron/erinnerungen" \
             -H "X-SEMPA-Cron-Secret: $SEMPA_CRON_SECRET"
