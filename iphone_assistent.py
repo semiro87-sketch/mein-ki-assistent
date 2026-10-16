@@ -1190,15 +1190,37 @@ def sempa_cron_erinnerungen():
         return jsonify({"fehler": "Nicht autorisiert"}), 401
     if not os.environ.get("DATABASE_URL"):
         return jsonify({"fehler": "Datenbank fehlt"}), 503
-    private_b64 = os.environ.get("VAPID_PRIVATE_KEY_BASE64", "")
-    if not private_b64:
-        return jsonify({"fehler": "VAPID_PRIVATE_KEY_BASE64 fehlt"}), 503
+    # Akzeptiert sowohl den bisherigen Base64-kodierten PEM-Schlüssel als auch
+    # den üblichen Base64URL-VAPID-Privatschlüssel (32 Bytes) aus Render.
+    private_b64 = os.environ.get("VAPID_PRIVATE_KEY_BASE64", "").strip()
+    private_raw = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
+    if not private_b64 and not private_raw:
+        return jsonify({"fehler": "VAPID-Privatschlüssel fehlt"}), 503
     try:
         from pywebpush import webpush, WebPushException
-        pem = base64.b64decode(private_b64, validate=True).decode("ascii")
-        if "BEGIN PRIVATE KEY" not in pem and "BEGIN EC PRIVATE KEY" not in pem:
-            raise ValueError("Ungültiges PEM-Format")
-    except (ImportError, ValueError, UnicodeError) as exc:
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        if private_b64:
+            pem = base64.b64decode(private_b64, validate=True).decode("ascii")
+            key = serialization.load_pem_private_key(pem.encode("ascii"), password=None)
+        elif "-----BEGIN " in private_raw:
+            key = serialization.load_pem_private_key(private_raw.encode("ascii"), password=None)
+        else:
+            # Base64URL benötigt gegebenenfalls Padding; keine Schlüssel protokollieren.
+            raw = base64.b64decode(private_raw + "=" * (-len(private_raw) % 4), altchars=b"-_", validate=True)
+            if len(raw) != 32:
+                raise ValueError("VAPID-Schlüssel muss 32 Bytes enthalten")
+            key = ec.derive_private_key(int.from_bytes(raw, "big"), ec.SECP256R1())
+        if not isinstance(key, ec.EllipticCurvePrivateKey) or not isinstance(key.curve, ec.SECP256R1):
+            raise ValueError("VAPID benötigt einen P-256-Schlüssel")
+        public_config = os.environ.get("VAPID_PUBLIC_KEY", "").strip()
+        if public_config:
+            public_raw = base64.b64decode(public_config + "=" * (-len(public_config) % 4), altchars=b"-_", validate=True)
+            derived = key.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+            if not hmac.compare_digest(public_raw, derived):
+                raise ValueError("VAPID-Schlüsselpaar stimmt nicht überein")
+        pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode("ascii")
+    except (ImportError, ValueError, UnicodeError, TypeError) as exc:
         app.logger.error("Push-Konfiguration ungültig: %s", type(exc).__name__)
         return jsonify({"fehler": "Push-Konfiguration ungültig"}), 503
 
