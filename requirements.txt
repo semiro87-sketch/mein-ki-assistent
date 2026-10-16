@@ -2,3 +2,4 @@ Flask
 openai
 psycopg[binary]
 pywebpush
+gunicorn
