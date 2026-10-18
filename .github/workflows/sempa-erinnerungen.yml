@@ -27,5 +27,5 @@ jobs:
             --retry 2 \
             --retry-delay 20 \
             --max-time 90 \
-            -X POST "${SEMPA_URL%/}/api/cron/erinnerungen" \
+            -X POST "https://sempa-3-2-test.onrender.com/api/cron/erinnerungen" \
             -H "X-SEMPA-Cron-Secret: $SEMPA_CRON_SECRET"
