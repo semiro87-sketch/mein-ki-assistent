@@ -335,7 +335,21 @@ pushButton?.addEventListener('click',async()=>{
   if(permission!=='granted')throw Error('Benachrichtigungen wurden nicht erlaubt.');
   const reg=await navigator.serviceWorker.register('/sw.js',{scope:'/'});
   const ready=await navigator.serviceWorker.ready;
-  const sub=await ready.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(publicKey)});
+  const applicationServerKey=urlBase64ToUint8Array(publicKey);
+  let sub;
+  try{
+   sub=await ready.pushManager.subscribe({userVisibleOnly:true,applicationServerKey});
+  }catch(err){
+   // Nach einem VAPID-Schluesselwechsel kann iOS noch die alte Anmeldung halten.
+   // Nur bei diesem konkreten Konflikt und nur nach Nutzerklick erneuern.
+   const message=String(err?.message||'');
+   if(!/applicationServerKey.*(does not match|mismatch)|existing subscription/i.test(message))throw err;
+   const oldSub=await ready.pushManager.getSubscription();
+   if(!oldSub)throw err;
+   const removed=await oldSub.unsubscribe();
+   if(!removed)throw Error('Alte Push-Anmeldung konnte nicht entfernt werden.');
+   sub=await ready.pushManager.subscribe({userVisibleOnly:true,applicationServerKey});
+  }
   const response=await fetch('/api/push/subscribe',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(sub)});
   if(!response.ok)throw Error('Geräteanmeldung konnte nicht gespeichert werden.');
   pushStatus.textContent='✓ iPhone für Push angemeldet. Push-Anmeldung gespeichert. Ob Benachrichtigungen ankommen, wird noch getestet.';
