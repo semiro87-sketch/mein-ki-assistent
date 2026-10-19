@@ -8,7 +8,6 @@ import secrets
 import hashlib
 import hmac
 import base64
-import tempfile
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from decimal import Decimal
@@ -336,21 +335,7 @@ pushButton?.addEventListener('click',async()=>{
   if(permission!=='granted')throw Error('Benachrichtigungen wurden nicht erlaubt.');
   const reg=await navigator.serviceWorker.register('/sw.js',{scope:'/'});
   const ready=await navigator.serviceWorker.ready;
-  const applicationServerKey=urlBase64ToUint8Array(publicKey);
-  let sub;
-  try{
-   sub=await ready.pushManager.subscribe({userVisibleOnly:true,applicationServerKey});
-  }catch(err){
-   // Nach einem VAPID-Schluesselwechsel kann iOS noch die alte Anmeldung halten.
-   // Nur bei diesem konkreten Konflikt und nur nach Nutzerklick erneuern.
-   const message=String(err?.message||'');
-   if(!/applicationServerKey.*(does not match|mismatch)|existing subscription/i.test(message))throw err;
-   const oldSub=await ready.pushManager.getSubscription();
-   if(!oldSub)throw err;
-   const removed=await oldSub.unsubscribe();
-   if(!removed)throw Error('Alte Push-Anmeldung konnte nicht entfernt werden.');
-   sub=await ready.pushManager.subscribe({userVisibleOnly:true,applicationServerKey});
-  }
+  const sub=await ready.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(publicKey)});
   const response=await fetch('/api/push/subscribe',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(sub)});
   if(!response.ok)throw Error('Geräteanmeldung konnte nicht gespeichert werden.');
   pushStatus.textContent='✓ iPhone für Push angemeldet. Push-Anmeldung gespeichert. Ob Benachrichtigungen ankommen, wird noch getestet.';
@@ -1294,72 +1279,67 @@ def sempa_cron_erinnerungen():
     sent = 0
     attempts = 0
     # PostgreSQL advisory lock verhindert konkurrierende Cron-Läufe.
-    with tempfile.TemporaryDirectory(prefix="sempa-vapid-") as temp_dir:
-        vapid_key_path = os.path.join(temp_dir, "private.pem")
-        fd = os.open(vapid_key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w", encoding="ascii") as key_file:
-            key_file.write(pem)
-        with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT pg_try_advisory_xact_lock(732032)")
-                if not cur.fetchone()[0]:
-                    return jsonify({"status": "bereits in Bearbeitung", "versendet": 0})
-                cur.execute("""CREATE TABLE IF NOT EXISTS aufgaben (
-                    id SERIAL PRIMARY KEY, text TEXT NOT NULL, prioritaet TEXT NOT NULL,
-                    faelligkeit TEXT NOT NULL, uhrzeit TEXT)""")
-                sempa_prepare_tasks(cur)
-                cur.execute("""CREATE TABLE IF NOT EXISTS sempa_push_subscriptions (
-                    endpoint TEXT PRIMARY KEY, p256dh TEXT NOT NULL, auth TEXT NOT NULL,
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())""")
-                cur.execute("""CREATE TABLE IF NOT EXISTS sempa_push_dispatch (
-                    aufgabe_id INTEGER PRIMARY KEY, versucht_am TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    erfolgreich INTEGER NOT NULL DEFAULT 0)""")
-                cur.execute("SELECT endpoint, p256dh, auth FROM sempa_push_subscriptions")
-                subs = cur.fetchall()
-                if not subs:
-                    return jsonify({"status": "kein iPhone angemeldet", "versendet": 0})
-                cur.execute("""SELECT id, text, sempa_due_on, uhrzeit FROM aufgaben
-                    WHERE sempa_due_on IS NOT NULL AND sempa_due_on <= %s
-                      AND uhrzeit ~ '^[0-2][0-9]:[0-5][0-9]$'
-                      AND id NOT IN (SELECT aufgabe_id FROM sempa_push_dispatch)
-                    ORDER BY sempa_due_on, uhrzeit, id LIMIT 50""", (now.date(),))
-                tasks = cur.fetchall()
-                subject = os.environ.get("VAPID_SUBJECT", "").strip() or "https://" + request.host
-                for task_id, task_text, day, clock in tasks:
-                    hour, minute = map(int, clock.split(":"))
-                    if hour > 23 or (day == now.date() and (hour, minute) > (now.hour, now.minute)):
-                        continue
-                    # Reservierung innerhalb der Transaktion; bei komplettem Fehlschlag wieder freigeben.
-                    cur.execute("""INSERT INTO sempa_push_dispatch (aufgabe_id)
-                        VALUES (%s) ON CONFLICT DO NOTHING RETURNING aufgabe_id""", (task_id,))
-                    if cur.fetchone() is None:
-                        continue
-                    attempts += 1
-                    success = 0
-                    for endpoint, p256dh, auth in subs:
-                        try:
-                            webpush(
-                                subscription_info={"endpoint": endpoint, "keys": {"p256dh": p256dh, "auth": auth}},
-                                data=json.dumps({"title": "SEMPA Erinnerung", "body": task_text[:200]}, ensure_ascii=False),
-                                vapid_private_key=vapid_key_path,
-                                vapid_claims={"sub": subject},
-                                ttl=3600,
-                            )
-                            success += 1
-                            sent += 1
-                        except WebPushException as exc:
-                            status = getattr(getattr(exc, "response", None), "status_code", None)
-                            if status in (404, 410):
-                                cur.execute("DELETE FROM sempa_push_subscriptions WHERE endpoint=%s", (endpoint,))
-                            else:
-                                app.logger.warning("Push-Versand fehlgeschlagen: HTTP %s", status)
-                        except Exception:
-                            app.logger.exception("Push-Versand fehlgeschlagen")
-                    if success:
-                        cur.execute("UPDATE sempa_push_dispatch SET erfolgreich=%s WHERE aufgabe_id=%s", (success, task_id))
-                    else:
-                        # Kein erfolgreicher Versand: bei einem späteren Cron-Lauf erneut versuchen.
-                        cur.execute("DELETE FROM sempa_push_dispatch WHERE aufgabe_id=%s", (task_id,))
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_try_advisory_xact_lock(732032)")
+            if not cur.fetchone()[0]:
+                return jsonify({"status": "bereits in Bearbeitung", "versendet": 0})
+            cur.execute("""CREATE TABLE IF NOT EXISTS aufgaben (
+                id SERIAL PRIMARY KEY, text TEXT NOT NULL, prioritaet TEXT NOT NULL,
+                faelligkeit TEXT NOT NULL, uhrzeit TEXT)""")
+            sempa_prepare_tasks(cur)
+            cur.execute("""CREATE TABLE IF NOT EXISTS sempa_push_subscriptions (
+                endpoint TEXT PRIMARY KEY, p256dh TEXT NOT NULL, auth TEXT NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS sempa_push_dispatch (
+                aufgabe_id INTEGER PRIMARY KEY, versucht_am TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                erfolgreich INTEGER NOT NULL DEFAULT 0)""")
+            cur.execute("SELECT endpoint, p256dh, auth FROM sempa_push_subscriptions")
+            subs = cur.fetchall()
+            if not subs:
+                return jsonify({"status": "kein iPhone angemeldet", "versendet": 0})
+            cur.execute("""SELECT id, text, sempa_due_on, uhrzeit FROM aufgaben
+                WHERE sempa_due_on IS NOT NULL AND sempa_due_on <= %s
+                  AND uhrzeit ~ '^[0-2][0-9]:[0-5][0-9]$'
+                  AND id NOT IN (SELECT aufgabe_id FROM sempa_push_dispatch)
+                ORDER BY sempa_due_on, uhrzeit, id LIMIT 50""", (now.date(),))
+            tasks = cur.fetchall()
+            subject = os.environ.get("VAPID_SUBJECT", "").strip() or "https://" + request.host
+            for task_id, task_text, day, clock in tasks:
+                hour, minute = map(int, clock.split(":"))
+                if hour > 23 or (day == now.date() and (hour, minute) > (now.hour, now.minute)):
+                    continue
+                # Reservierung innerhalb der Transaktion; bei komplettem Fehlschlag wieder freigeben.
+                cur.execute("""INSERT INTO sempa_push_dispatch (aufgabe_id)
+                    VALUES (%s) ON CONFLICT DO NOTHING RETURNING aufgabe_id""", (task_id,))
+                if cur.fetchone() is None:
+                    continue
+                attempts += 1
+                success = 0
+                for endpoint, p256dh, auth in subs:
+                    try:
+                        webpush(
+                            subscription_info={"endpoint": endpoint, "keys": {"p256dh": p256dh, "auth": auth}},
+                            data=json.dumps({"title": "SEMPA Erinnerung", "body": task_text[:200]}, ensure_ascii=False),
+                            vapid_private_key=pem,
+                            vapid_claims={"sub": subject},
+                            ttl=3600,
+                        )
+                        success += 1
+                        sent += 1
+                    except WebPushException as exc:
+                        status = getattr(getattr(exc, "response", None), "status_code", None)
+                        if status in (404, 410):
+                            cur.execute("DELETE FROM sempa_push_subscriptions WHERE endpoint=%s", (endpoint,))
+                        else:
+                            app.logger.warning("Push-Versand fehlgeschlagen: HTTP %s", status)
+                    except Exception:
+                        app.logger.exception("Push-Versand fehlgeschlagen")
+                if success:
+                    cur.execute("UPDATE sempa_push_dispatch SET erfolgreich=%s WHERE aufgabe_id=%s", (success, task_id))
+                else:
+                    # Kein erfolgreicher Versand: bei einem späteren Cron-Lauf erneut versuchen.
+                    cur.execute("DELETE FROM sempa_push_dispatch WHERE aufgabe_id=%s", (task_id,))
     return jsonify({"status": "ok", "erinnerungen_bearbeitet": attempts, "push_versendet": sent})
 
 
