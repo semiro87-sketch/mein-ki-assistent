@@ -250,10 +250,60 @@ main{max-width:680px;padding:calc(18px + env(safe-area-inset-top)) 17px calc(48p
 .budget-compact{margin:12px 0 16px}.budget-compact .budget-track{background:#253a2d}.budget-fill{background:#34d399}
 #chatbereich,#reminder-anchor,#settings-anchor{scroll-margin-top:15px}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.dash-tile{transition:none}}
+
+/* SEMPA 3.3 TEST – Clean Edition: nur Oberfläche, Backend/Push unverändert */
+:root{--bg:#1C222C;--panel:#252F3B;--line:#384758;--green:#00E5FF;--muted:#A6B6C8;--white:#F4F8FC}
+html,body{background:#1C222C!important;color:#F4F8FC}
+main{max-width:720px;padding:calc(12px + env(safe-area-inset-top)) 14px calc(55px + env(safe-area-inset-bottom))}
+.top{position:sticky;top:0;z-index:20;background:#1C222Cee;backdrop-filter:blur(15px);padding:9px 0 13px;border-bottom:1px solid #384758}
+.top .eyebrow{color:#9BB0C5}.top h1{font-size:20px}.online{color:#00E5FF;background:#233747;border-color:#376174}
+.sempa-logo{background:#183E4A;color:#00E5FF;border-color:#306C7C}
+.panel,.task,.budget-compact,.dash-settings,.dash-tile{background:#252F3B;border-color:#384758;box-shadow:none}
+.field{background:#303D4B;color:#F4F8FC;border-color:#526274}
+.field:focus{border-color:#00E5FF;box-shadow:0 0 0 2px #00E5FF33}
+.primary{background:#00E5FF;color:#10202C}
+.subbtn,.voice-btn,.chat-action{background:#263F4B;border-color:#397080;color:#B8F5FF}
+.section-head,.label,.chat-who,.dash-reminder h3{color:#00E5FF}
+.chat-panel{background:transparent;border:0;padding:8px 0;margin-top:10px}
+.chat-scroll{max-height:none;overflow:visible}.chat-line{border-bottom:1px solid #354555}
+.chat-user .chat-bubble{background:#2A3D4A!important;border-radius:16px!important;padding:12px!important}
+.chat-assistant .chat-bubble{background:transparent!important}
+.chat-text{color:#F4F8FC}
+#questionForm{display:flex;flex-direction:column;gap:7px}
+#questionForm .field{border-radius:24px;padding:16px}
+#questionForm .primary{border-radius:22px}
+#questionForm .voice-row{margin-top:0}
+#questionForm .voice-note{font-size:10px}
+.sempa33-menu{background:transparent;border:1px solid #3D5263;color:#00E5FF;border-radius:12px;min-width:44px;min-height:44px;font-size:22px}
+.sempa33-nav{display:none;position:sticky;top:74px;z-index:19;background:#222D39;border:1px solid #3D5263;border-radius:14px;padding:9px;box-shadow:0 14px 28px #0005}
+.sempa33-nav.open{display:grid;gap:6px}
+.sempa33-nav button{background:#2B3948;border:0;color:#F4F8FC;text-align:left;padding:13px;border-radius:10px}
+.dashboard{display:none;margin:10px 0}.dashboard.sempa33-open{display:block}
+.dash-welcome,.dash-reminder,.dash-tiles{display:none}
+.dash-settings{display:block}
+.sempa33-welcome{text-align:center;padding:50px 12px 28px}
+.sempa33-welcome .brain-mark{font-size:48px;color:#00E5FF}
+.sempa33-welcome h2{font-size:23px;line-height:1.3;margin:12px 0;color:#F4F8FC}
+.sempa33-welcome p{color:#A6B6C8}
+.sempa33-welcome.has-chat{display:none}
+.budget-compact{position:fixed;right:12px;bottom:calc(7px + env(safe-area-inset-bottom));z-index:15;width:auto;max-width:210px;padding:5px 9px;margin:0;border-radius:20px;background:#1C222CeF;border-color:#384758}
+.budget-compact-line{font-size:9px;gap:5px}.budget-compact-line strong{font-size:10px;color:#00E5FF}
+.budget-compact-line>span,.budget-compact .budget-track,.budget-foot{display:none}
+.budget-total{color:#A6B6C8}
+#push-panel{scroll-margin-top:100px}
+@media(max-width:380px){.budget-compact{right:6px;max-width:170px}.budget-compact-line strong{font-size:9px}}
+
 </style>
 </head>
 <body><main>
-<header class="top"><div class="brand"><div class="sempa-logo" aria-label="SEMPA Logo">S</div><div><div class="eyebrow">DEIN PERSÖNLICHER ASSISTENT</div><h1>SEMPA 3.2</h1></div></div><div class="online">BEREIT</div></header>
+<header class="top"><button type="button" class="sempa33-menu" id="sempa33Menu" aria-label="Menü öffnen" aria-expanded="false">☰</button><div class="brand"><div class="sempa-logo" aria-label="SEMPA Logo">S</div><div><div class="eyebrow">DEIN PERSÖNLICHER ASSISTENT</div><h1>SEMPA 3.2</h1></div></div><div class="online">BEREIT</div></header>
+<nav class="sempa33-nav" id="sempa33Nav" aria-label="SEMPA Navigation">
+<button type="button" data-sempa33="chat">✦ Chat</button>
+<button type="button" data-sempa33="history">◷ Gesprächsverlauf</button>
+<button type="button" data-sempa33="reminders">🔔 Erinnerungen</button>
+<button type="button" data-sempa33="settings">⚙ Einstellungen</button>
+<button type="button" data-sempa33="push">🔔 Push-Status</button>
+</nav>
 <section class="dashboard" aria-label="Startseite">
 <div class="dash-welcome"><h2 id="dashGreeting">Willkommen bei SEMPA! 👋</h2><p>Was kann ich heute für dich tun?</p></div>
 <div class="dash-reminder"><h3>🔔 Deine anstehenden Erinnerungen</h3><p id="dashNextReminder">Deine Aufgaben findest du im Erinnerungsbereich.</p></div>
@@ -269,7 +319,8 @@ main{max-width:680px;padding:calc(18px + env(safe-area-inset-top)) 17px calc(48p
 <div class="core-label"><strong>NEURAL CORE</strong><div class="status" id="status">● ASSISTANT READY</div></div>
 <div class="system-dashboard" aria-label="Systemstatus"><div class="system-stat"><span class="stat-icon">⌘</span><b>KI</b><small>ONLINE</small></div><div class="system-stat"><span class="stat-icon">♩</span><b>MIKROFON</b><small>BEREIT</small></div><div class="system-stat"><span class="stat-icon">☑</span><b>AUFGABEN</b><small>{{ (heute|length + morgen|length + spaeter|length) }} OFFEN</small></div><div class="system-stat"><span class="stat-icon">◷</span><b>HEUTE</b><small>{{ heute|length }} MISSIONEN</small></div></div>
 <section class="budget-compact" aria-label="API-Budget"><div class="budget-compact-line"><span>◈ API BUDGET <span class="budget-month">{{ budget.month }}</span></span><strong>{{ budget.used }} € <span class="budget-total">/ 2,00 €</span></strong></div><div class="budget-track" role="progressbar" aria-label="Geschätztes Monatsbudget verbraucht" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ budget.percent|round|int }}"><div class="budget-fill"></div></div><div class="budget-foot"><span>GESCHÄTZT · KEIN RECHNUNGSSTAND</span><span>{{ budget.remaining }} € FREI</span></div></section>
-<section class="panel"><div class="label">SYSTEM INPUT_</div><form method="post" id="questionForm"><input class="field" name="frage" placeholder="Was kann ich für dich tun?" aria-label="Frage an KI" required autocomplete="off"><div class="voice-row"><button class="voice-btn" type="button" data-voice="frage" aria-label="Frage per Sprache aufnehmen">🎙 FRAGE SPRECHEN</button></div><div class="voice-note" data-voice-note="frage" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div><button class="primary" type="submit">↗ KI-TERMINAL ÖFFNEN</button></form></section>
+<section class="sempa33-welcome" id="sempa33Welcome"><div class="brain-mark">♧</div><h2 id="sempa33Greeting">Wie kann ich dir helfen?</h2><p>Dein persönlicher KI-Assistent</p></section>
+<section class="panel"><div class="label">SEMPA CHAT</div><form method="post" id="questionForm"><input class="field" name="frage" placeholder="Was kann ich für dich tun?" aria-label="Frage an KI" required autocomplete="off"><div class="voice-row"><button class="voice-btn" type="button" data-voice="frage" aria-label="Frage per Sprache aufnehmen">🎙 FRAGE SPRECHEN</button></div><div class="voice-note" data-voice-note="frage" role="status" aria-live="polite">Maximal 30 Sekunden pro Aufnahme.</div><button class="primary" type="submit">↗ KI-TERMINAL ÖFFNEN</button></form></section>
 <div class="quick-grid"><button class="tile" type="button" onclick="document.querySelector('[name=frage]').focus()"><span class="tile-icon">●</span><b>KI TERMINAL</b><small>FRAGEN STELLEN</small></button><form method="post"><input type="hidden" name="tagesplan" value="1"><button class="tile" type="submit"><span class="tile-icon">◎</span><b>MISSION PLAN</b><small>TAGESPLAN ERSTELLEN</small></button></form></div>
 <section class="panel chat-panel" id="chatbereich" aria-label="Gesprächsverlauf">
 <div class="label">▸ SEMPA CHAT // AKTUELLE SITZUNG</div>
@@ -459,6 +510,35 @@ voiceButtons.forEach(b=>b.addEventListener('click',()=>startVoice(b.dataset.voic
  }));
  // Nach einem Post-Redirect/Antwort direkt den Chat zeigen.
  if(location.hash==='#chatbereich')document.getElementById('chatbereich')?.scrollIntoView();
+})();
+
+// SEMPA 3.3: Navigation und persönliche Chat-Begrüßung (keine API-Kosten).
+(function(){
+ const nav=document.getElementById('sempa33Nav'),menu=document.getElementById('sempa33Menu');
+ const dashboard=document.querySelector('.dashboard');
+ const close=()=>{nav.classList.remove('open');menu.setAttribute('aria-expanded','false')};
+ menu.addEventListener('click',()=>{const opened=nav.classList.toggle('open');menu.setAttribute('aria-expanded',String(opened))});
+ document.querySelectorAll('[data-sempa33]').forEach(b=>b.addEventListener('click',()=>{
+  const action=b.dataset.sempa33;close();
+  if(action==='settings'){
+   dashboard.classList.add('sempa33-open');
+   document.getElementById('settings-anchor').hidden=false;
+   document.getElementById('settings-anchor').scrollIntoView({behavior:'smooth'});
+  }else{
+   dashboard.classList.remove('sempa33-open');
+   const ids={chat:'questionForm',history:'chatbereich',reminders:'reminder-anchor',push:'push-panel'};
+   document.getElementById(ids[action])?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+ }));
+ const greeting=document.getElementById('sempa33Greeting');
+ function updateGreeting(){
+  const hour=new Date().getHours(),phrase=hour<11?'Guten Morgen':hour<18?'Guten Tag':'Guten Abend';
+  let name='';try{name=localStorage.getItem('sempa32_vorname')||''}catch(e){}
+  greeting.textContent=phrase+(name?', '+name:'')+'! Wie kann ich dir helfen?';
+ }
+ updateGreeting();
+ document.getElementById('sempaProfileSave')?.addEventListener('click',()=>setTimeout(updateGreeting,0));
+ if(document.querySelector('.chat-line'))document.getElementById('sempa33Welcome').classList.add('has-chat');
 })();
 </script></body></html>
 """
